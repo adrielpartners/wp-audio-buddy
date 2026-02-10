@@ -6,7 +6,7 @@ if (! defined('ABSPATH')) {
 
 final class WPAB_Queue
 {
-    public function __construct(private WPAB_Settings $settings)
+    public function __construct(private WPAB_Settings $settings, private WPAB_Logger $logger)
     {
         add_action('add_attachment', [$this, 'maybe_auto_transcribe']);
     }
@@ -20,21 +20,25 @@ final class WPAB_Queue
     public function enqueue_transcription(int $attachment_id): void
     {
         if ('done' === WPAB_Meta::transcript_status($attachment_id)) {
+            $this->logger->info('enqueue_transcription', 'Skipped transcription queue; already done.', $attachment_id);
             return;
         }
 
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_STATUS, 'queued');
         $this->enqueue('wpab_transcribe_attachment', [$attachment_id]);
+        $this->logger->info('enqueue_transcription', 'Queued transcription job.', $attachment_id);
     }
 
     public function enqueue_excerpt(int $attachment_id): void
     {
         if (! WPAB_Meta::has_transcript($attachment_id) || 'done' === WPAB_Meta::excerpt_status($attachment_id)) {
+            $this->logger->info('enqueue_excerpt', 'Skipped excerpt queue.', $attachment_id, ['has_transcript' => WPAB_Meta::has_transcript($attachment_id), 'status' => WPAB_Meta::excerpt_status($attachment_id)]);
             return;
         }
 
         update_post_meta($attachment_id, WPAB_Meta::EXCERPT_STATUS, 'queued');
         $this->enqueue('wpab_generate_excerpt', [$attachment_id]);
+        $this->logger->info('enqueue_excerpt', 'Queued excerpt job.', $attachment_id);
     }
 
     private function enqueue(string $hook, array $args): void

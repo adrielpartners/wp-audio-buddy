@@ -6,7 +6,7 @@ if (! defined('ABSPATH')) {
 
 final class WPAB_ExcerptService
 {
-    public function __construct(private WPAB_Settings $settings)
+    public function __construct(private WPAB_Settings $settings, private WPAB_Logger $logger)
     {
     }
 
@@ -14,26 +14,29 @@ final class WPAB_ExcerptService
     {
         $transcript = (string) get_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT, true);
         if ('' === trim($transcript)) {
+            $this->logger->info('excerpt', 'Skipped excerpt generation: transcript missing.', $attachment_id);
             return;
         }
 
         if ('done' === WPAB_Meta::excerpt_status($attachment_id) && '' !== trim((string) get_post_meta($attachment_id, WPAB_Meta::EXCERPT, true))) {
+            $this->logger->info('excerpt', 'Skipped excerpt generation: already complete.', $attachment_id);
             return;
         }
 
         update_post_meta($attachment_id, WPAB_Meta::EXCERPT_STATUS, 'running');
 
         $prompt_type = (string) $this->settings->get('excerpt_type', 'informative');
-        $custom_prompt = (string) $this->settings->get('excerpt_custom_prompt', '');
         $max_words = (int) $this->settings->get('excerpt_max_words', 100);
         $temperature = (float) $this->settings->get('excerpt_temperature', 0.2);
+        $template = (string) $this->settings->get('excerpt_prompt_text', WPAB_Settings::prompt_templates()[$prompt_type] ?? '');
 
-        $prompt = $this->base_prompt($prompt_type, $custom_prompt);
-        $response = $this->responses_api($prompt . "\n\nTranscript:\n" . $transcript, $max_words, $temperature);
+        $prompt = str_replace(['{{MAX_WORDS}}', '{{TRANSCRIPT}}'], [(string) $max_words, $transcript], $template);
+        $response = $this->responses_api($prompt, $max_words, $temperature);
 
         if (is_wp_error($response)) {
             update_post_meta($attachment_id, WPAB_Meta::EXCERPT_STATUS, 'error');
             update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_ERROR, $response->get_error_message());
+            $this->logger->error('excerpt', $response->get_error_message(), $attachment_id);
             return;
         }
 
@@ -41,8 +44,10 @@ final class WPAB_ExcerptService
         update_post_meta($attachment_id, WPAB_Meta::EXCERPT_STATUS, 'done');
         update_post_meta($attachment_id, WPAB_Meta::EXCERPT_MODEL, $this->settings->get('excerpt_model'));
         update_post_meta($attachment_id, WPAB_Meta::EXCERPT_PROMPT_TYPE, $prompt_type);
-        update_post_meta($attachment_id, WPAB_Meta::EXCERPT_PROMPT_CUSTOM, $custom_prompt);
+        update_post_meta($attachment_id, WPAB_Meta::EXCERPT_PROMPT_CUSTOM, $template);
         update_post_meta($attachment_id, WPAB_Meta::EXCERPT_UPDATED, current_time('mysql'));
+
+        $this->logger->info('excerpt', 'Excerpt generated successfully.', $attachment_id, ['prompt_type' => $prompt_type]);
     }
 
     public function format_transcript(string $transcript): string
@@ -54,15 +59,6 @@ final class WPAB_ExcerptService
         );
 
         return is_wp_error($response) ? $transcript : $response;
-    }
-
-    private function base_prompt(string $type, string $custom_prompt): string
-    {
-        return match ($type) {
-            'engaging' => 'Write an engaging, welcoming invitation encouraging someone to listen to or engage with this audio content.',
-            'custom' => $custom_prompt ?: 'Summarize the content in plain language.',
-            default => 'Summarize the following transcript clearly and concisely for a general audience.',
-        };
     }
 
     private function responses_api(string $input, int $max_words, float $temperature): string|WP_Error
@@ -78,21 +74,11 @@ final class WPAB_ExcerptService
             'input' => [
                 [
                     'role' => 'system',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => 'Output plain text only. Maximum ' . $max_words . ' words.',
-                        ],
-                    ],
+                    'content' => [['type' => 'input_text', 'text' => 'Output plain text only. Maximum ' . $max_words . ' words.']],
                 ],
                 [
                     'role' => 'user',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => $input,
-                        ],
-                    ],
+                    'content' => [['type' => 'input_text', 'text' => $input]],
                 ],
             ],
             'temperature' => $temperature,
@@ -100,10 +86,7 @@ final class WPAB_ExcerptService
 
         $res = wp_remote_post('https://api.openai.com/v1/responses', [
             'timeout' => 120,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $api_key,
-                'Content-Type' => 'application/json',
-            ],
+            'headers' => ['Authorization' => 'Bearer ' . $api_key, 'Content-Type' => 'application/json'],
             'body' => wp_json_encode($payload),
         ]);
 

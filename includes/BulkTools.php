@@ -6,7 +6,9 @@ if (! defined('ABSPATH')) {
 
 final class WPAB_Bulk_Tools
 {
-    public function __construct(private WPAB_Queue $queue)
+    public const PARENT_SLUG = 'wpab';
+
+    public function __construct(private WPAB_Queue $queue, private WPAB_Logger $logger)
     {
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_post_wpab_bulk_transcribe', [$this, 'bulk_transcribe']);
@@ -15,8 +17,8 @@ final class WPAB_Bulk_Tools
 
     public function menu(): void
     {
-        add_menu_page('WP Audio Buddy', 'WP Audio Buddy', 'manage_options', 'wpab-bulk-tools', [$this, 'render'], 'dashicons-format-audio', 81);
-        add_submenu_page('wpab-bulk-tools', 'Bulk Tools', 'Bulk Tools', 'manage_options', 'wpab-bulk-tools', [$this, 'render']);
+        add_menu_page('WP Audio Buddy', 'WP Audio Buddy', 'manage_options', self::PARENT_SLUG, [$this, 'render'], 'dashicons-format-audio', 81);
+        add_submenu_page(self::PARENT_SLUG, 'Bulk Tools', 'Bulk Tools', 'manage_options', self::PARENT_SLUG, [$this, 'render']);
     }
 
     public function render(): void
@@ -59,15 +61,8 @@ final class WPAB_Bulk_Tools
             'fields' => 'ids',
             'meta_query' => [
                 'relation' => 'OR',
-                [
-                    'key' => WPAB_Meta::TRANSCRIPT,
-                    'compare' => 'NOT EXISTS',
-                ],
-                [
-                    'key' => WPAB_Meta::TRANSCRIPT,
-                    'value' => '',
-                    'compare' => '=',
-                ],
+                ['key' => WPAB_Meta::TRANSCRIPT, 'compare' => 'NOT EXISTS'],
+                ['key' => WPAB_Meta::TRANSCRIPT, 'value' => '', 'compare' => '='],
             ],
         ]);
 
@@ -75,7 +70,8 @@ final class WPAB_Bulk_Tools
             $this->queue->enqueue_transcription((int) $id);
         }
 
-        wp_safe_redirect(admin_url('admin.php?page=wpab-bulk-tools'));
+        $this->logger->info('bulk_transcribe', 'Queued transcription jobs.', null, ['count' => count($attachments)]);
+        wp_safe_redirect(admin_url('admin.php?page=' . self::PARENT_SLUG));
         exit;
     }
 
@@ -89,20 +85,15 @@ final class WPAB_Bulk_Tools
             'posts_per_page' => -1,
             'post_mime_type' => ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/x-wav'],
             'fields' => 'ids',
-            'meta_query' => [
-                [
-                    'key' => WPAB_Meta::TRANSCRIPT,
-                    'value' => '',
-                    'compare' => '!=',
-                ],
-            ],
+            'meta_query' => [[ 'key' => WPAB_Meta::TRANSCRIPT, 'value' => '', 'compare' => '!=' ]],
         ]);
 
         foreach ($attachments as $id) {
             $this->queue->enqueue_excerpt((int) $id);
         }
 
-        wp_safe_redirect(admin_url('admin.php?page=wpab-bulk-tools'));
+        $this->logger->info('bulk_excerpt', 'Queued excerpt jobs.', null, ['count' => count($attachments)]);
+        wp_safe_redirect(admin_url('admin.php?page=' . self::PARENT_SLUG));
         exit;
     }
 

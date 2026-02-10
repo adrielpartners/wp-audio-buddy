@@ -11,7 +11,6 @@ final class WPAB_Settings
     public function __construct()
     {
         add_action('admin_init', [$this, 'register']);
-        add_action('admin_menu', [$this, 'menu']);
     }
 
     public static function defaults(): array
@@ -23,9 +22,8 @@ final class WPAB_Settings
             'auto_transcribe_upload' => 0,
             'auto_generate_excerpt' => 0,
             'auto_format_transcript' => 1,
-            'auto_transcribe_mimetypes' => ['audio/mpeg'],
             'excerpt_type' => 'informative',
-            'excerpt_custom_prompt' => '',
+            'excerpt_prompt_text' => self::prompt_templates()['informative'],
             'excerpt_max_words' => 100,
             'excerpt_temperature' => 0.2,
             'enable_copy_transcript' => 1,
@@ -34,15 +32,18 @@ final class WPAB_Settings
         ];
     }
 
-    public function menu(): void
+    public static function prompt_templates(): array
     {
-        add_options_page(
-            __('WP Audio Buddy', 'wp-audio-buddy'),
-            __('WP Audio Buddy', 'wp-audio-buddy'),
-            'manage_options',
-            'wp-audio-buddy',
-            [$this, 'render']
-        );
+        return [
+            'informative' => "You are writing an informative summary of an audio recording.\n\nYour goal is to clearly explain what this audio is about so a reader can quickly understand its main ideas, themes, and takeaways without listening to the full recording.\n\nGuidelines:\n- Be clear, neutral, and accurate.\n- Focus on the core message and key points, not minor details.\n- Do not hype, persuade, or use promotional language.\n- Do not address the reader directly.\n- Do not mention “this episode,” “this podcast,” or “this sermon.”\n- Write in complete sentences and natural paragraphs.\n- Keep the tone factual, calm, and accessible to a general audience.\nLength:\n- Write no more than {{MAX_WORDS}} words.\n\nTranscript:\n{{TRANSCRIPT}}",
+            'engaging' => "You are writing an engaging invitation that encourages someone to listen to an audio recording.\n\nYour goal is to spark interest and curiosity while clearly communicating the heart of the message and why it is meaningful or relevant.\n\nGuidelines:\n- Write in a warm, approachable, and conversational tone.\n- Emphasize why the topic matters and what a listener may gain.\n- You may address the reader directly.\n- Avoid hype, exaggeration, or sales language.\n- Do not use clickbait or dramatic claims.\n- Do not mention timestamps, production details, or technical information.\n- Keep the language natural, thoughtful, and inviting.\n\nLength:\n- Write no more than {{MAX_WORDS}} words.\n\nTranscript:\n{{TRANSCRIPT}}",
+            'custom' => 'Type your custom writing prompt here.',
+        ];
+    }
+
+    public function register_menu(string $parent_slug): void
+    {
+        add_submenu_page($parent_slug, 'Settings', 'Settings', 'manage_options', 'wpab-settings', [$this, 'render']);
     }
 
     public function register(): void
@@ -72,7 +73,7 @@ final class WPAB_Settings
         $current['auto_generate_excerpt'] = ! empty($input['auto_generate_excerpt']) ? 1 : 0;
         $current['auto_format_transcript'] = ! empty($input['auto_format_transcript']) ? 1 : 0;
         $current['excerpt_type'] = sanitize_text_field($input['excerpt_type'] ?? 'informative');
-        $current['excerpt_custom_prompt'] = sanitize_textarea_field($input['excerpt_custom_prompt'] ?? '');
+        $current['excerpt_prompt_text'] = sanitize_textarea_field($input['excerpt_prompt_text'] ?? self::prompt_templates()[$current['excerpt_type']] ?? '');
         $current['excerpt_max_words'] = max(10, absint($input['excerpt_max_words'] ?? 100));
         $current['excerpt_temperature'] = max(0, min(1, (float) ($input['excerpt_temperature'] ?? 0.2)));
         $current['enable_copy_transcript'] = ! empty($input['enable_copy_transcript']) ? 1 : 0;
@@ -94,9 +95,10 @@ final class WPAB_Settings
         $settings = $this->get_all();
         $usage = $this->usage_stats();
         $public_post_types = get_post_types(['public' => true], 'objects');
+        $templates = self::prompt_templates();
         ?>
         <div class="wrap wpab-settings">
-            <h1><?php esc_html_e('WP Audio Buddy', 'wp-audio-buddy'); ?></h1>
+            <h1><?php esc_html_e('WP Audio Buddy Settings', 'wp-audio-buddy'); ?></h1>
             <form method="post" action="options.php">
                 <?php settings_fields(self::OPTION_KEY); ?>
                 <table class="form-table" role="presentation">
@@ -135,9 +137,12 @@ final class WPAB_Settings
                             </select>
                         </td>
                     </tr>
-                    <tr class="wpab-custom-prompt-row">
-                        <th><?php esc_html_e('Custom prompt', 'wp-audio-buddy'); ?></th>
-                        <td><textarea class="large-text code" rows="5" name="wpab_settings[excerpt_custom_prompt]"><?php echo esc_textarea($settings['excerpt_custom_prompt']); ?></textarea></td>
+                    <tr>
+                        <th><?php esc_html_e('Excerpt writing prompt', 'wp-audio-buddy'); ?></th>
+                        <td>
+                            <textarea id="wpab_excerpt_prompt_text" class="large-text code" rows="14" name="wpab_settings[excerpt_prompt_text]"><?php echo esc_textarea($settings['excerpt_prompt_text']); ?></textarea>
+                            <p class="description"><?php esc_html_e('Template supports {{MAX_WORDS}} and {{TRANSCRIPT}}.', 'wp-audio-buddy'); ?></p>
+                        </td>
                     </tr>
                     <tr>
                         <th><?php esc_html_e('Max length (words)', 'wp-audio-buddy'); ?></th>
@@ -169,10 +174,14 @@ final class WPAB_Settings
         </div>
         <script>
             (function(){
+                const templates = <?php echo wp_json_encode($templates); ?>;
                 const type = document.getElementById('wpab_excerpt_type');
-                const row = document.querySelector('.wpab-custom-prompt-row');
-                function toggle(){ if(!type||!row) return; row.style.display = type.value === 'custom' ? '' : 'none'; }
-                if(type){ type.addEventListener('change', toggle); toggle(); }
+                const textarea = document.getElementById('wpab_excerpt_prompt_text');
+                if(!type || !textarea) return;
+
+                type.addEventListener('change', function(){
+                    textarea.value = templates[type.value] || templates.custom;
+                });
             })();
         </script>
         <?php
@@ -197,9 +206,6 @@ final class WPAB_Settings
         global $wpdb;
         $seconds = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(CAST(pm.meta_value AS UNSIGNED)),0) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID=pm.post_id WHERE pm.meta_key=%s AND p.post_type='attachment'", WPAB_Meta::TRANSCRIPT_SECONDS));
         $excerpts = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID=pm.post_id WHERE pm.meta_key=%s AND pm.meta_value<>'' AND p.post_type='attachment'", WPAB_Meta::EXCERPT));
-        return [
-            'minutes' => round($seconds / 60, 2),
-            'excerpts' => $excerpts,
-        ];
+        return ['minutes' => round($seconds / 60, 2), 'excerpts' => $excerpts];
     }
 }
