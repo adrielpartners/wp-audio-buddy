@@ -1,0 +1,8 @@
+.wpab-action-btn { margin-right: 6px; }
+.wpab-editor-copy .button { width: 100%; margin-bottom: 6px; }
+.wpab-copy-message { min-height: 18px; }
+.wpab-media-actions .notice.inline { margin-top: 8px; }
+.wpab-log-level { font-weight: 600; }
+.wpab-log-level-error { color: #b32d2e; }
+.wpab-log-level-info { color: #2271b1; }
+.wpab-chunk-progress { margin: 6px 0; }
