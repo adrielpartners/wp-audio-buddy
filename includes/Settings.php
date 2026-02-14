@@ -22,6 +22,9 @@ final class WPAB_Settings
             'auto_transcribe_upload' => 0,
             'auto_generate_excerpt' => 0,
             'auto_format_transcript' => 1,
+            'worker_url' => '',
+            'worker_shared_secret' => '',
+            'worker_chunk_seconds' => 660,
             'excerpt_type' => 'informative',
             'excerpt_prompt_text' => self::prompt_templates()['informative'],
             'excerpt_max_words' => 100,
@@ -72,6 +75,9 @@ final class WPAB_Settings
         $current['auto_transcribe_upload'] = ! empty($input['auto_transcribe_upload']) ? 1 : 0;
         $current['auto_generate_excerpt'] = ! empty($input['auto_generate_excerpt']) ? 1 : 0;
         $current['auto_format_transcript'] = ! empty($input['auto_format_transcript']) ? 1 : 0;
+        $current['worker_url'] = esc_url_raw($input['worker_url'] ?? '');
+        $current['worker_shared_secret'] = sanitize_text_field($input['worker_shared_secret'] ?? '');
+        $current['worker_chunk_seconds'] = max(60, min(900, absint($input['worker_chunk_seconds'] ?? 660)));
         $current['excerpt_type'] = sanitize_text_field($input['excerpt_type'] ?? 'informative');
         $current['excerpt_prompt_text'] = sanitize_textarea_field($input['excerpt_prompt_text'] ?? self::prompt_templates()[$current['excerpt_type']] ?? '');
         $current['excerpt_max_words'] = max(10, absint($input['excerpt_max_words'] ?? 100));
@@ -115,6 +121,24 @@ final class WPAB_Settings
                         <th><label for="wpab_excerpt_model"><?php esc_html_e('Excerpt generation model', 'wp-audio-buddy'); ?></label></th>
                         <td><?php $this->select('excerpt_model', ['gpt-5-nano', 'gpt-5-mini', 'gpt-5.1', 'gpt-5.2'], $settings['excerpt_model']); ?></td>
                     </tr>
+
+                    <tr><th colspan="2"><h2><?php esc_html_e('VPS Worker Mode', 'wp-audio-buddy'); ?></h2></th></tr>
+                    <tr>
+                        <th><label for="wpab_worker_url"><?php esc_html_e('Worker URL', 'wp-audio-buddy'); ?></label></th>
+                        <td>
+                            <input type="url" id="wpab_worker_url" class="regular-text" name="wpab_settings[worker_url]" value="<?php echo esc_attr($settings['worker_url']); ?>" placeholder="https://worker.example.com/">
+                            <p class="description"><?php esc_html_e('When set with a shared secret, transcription requests are delegated to your VPS worker at /v1/transcribe.', 'wp-audio-buddy'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="wpab_worker_shared_secret"><?php esc_html_e('Worker Shared Secret', 'wp-audio-buddy'); ?></label></th>
+                        <td><input type="password" id="wpab_worker_shared_secret" class="regular-text" name="wpab_settings[worker_shared_secret]" value="<?php echo esc_attr($settings['worker_shared_secret']); ?>" autocomplete="off"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="wpab_worker_chunk_seconds"><?php esc_html_e('Worker chunk seconds', 'wp-audio-buddy'); ?></label></th>
+                        <td><input type="number" id="wpab_worker_chunk_seconds" min="60" max="900" step="1" name="wpab_settings[worker_chunk_seconds]" value="<?php echo esc_attr((string) $settings['worker_chunk_seconds']); ?>"></td>
+                    </tr>
+
                     <tr><th colspan="2"><h2><?php esc_html_e('Automation Toggles', 'wp-audio-buddy'); ?></h2></th></tr>
                     <?php $this->checkbox_row('auto_transcribe_upload', 'Auto-transcribe audio on upload (MP3 by default)', $settings); ?>
                     <?php $this->checkbox_row('auto_generate_excerpt', 'Auto-generate excerpt after transcription', $settings); ?>
@@ -206,6 +230,7 @@ final class WPAB_Settings
         global $wpdb;
         $seconds = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(CAST(pm.meta_value AS UNSIGNED)),0) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID=pm.post_id WHERE pm.meta_key=%s AND p.post_type='attachment'", WPAB_Meta::TRANSCRIPT_SECONDS));
         $excerpts = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID=pm.post_id WHERE pm.meta_key=%s AND pm.meta_value<>'' AND p.post_type='attachment'", WPAB_Meta::EXCERPT));
-        return ['minutes' => round($seconds / 60, 2), 'excerpts' => $excerpts];
+        $minutes_total = (float) get_option('wpab_total_minutes_transcribed', 0);
+        return ['minutes' => max(round($seconds / 60, 2), round($minutes_total, 2)), 'excerpts' => $excerpts];
     }
 }

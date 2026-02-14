@@ -15,6 +15,58 @@ final class WPAB_TranscriptionService
     ) {
     }
 
+    public function dispatch_to_worker(int $attachment_id): void
+    {
+        $worker_url = trailingslashit((string) $this->settings->get('worker_url', '')) . 'v1/transcribe';
+        $secret = (string) $this->settings->get('worker_shared_secret', '');
+
+        if ('' === trim($worker_url) || '' === trim($secret)) {
+            $this->fail($attachment_id, 'Worker mode is enabled but worker URL/shared secret are missing.');
+            return;
+        }
+
+        $audio_url = wp_get_attachment_url($attachment_id);
+        if (! $audio_url) {
+            $this->fail($attachment_id, 'Attachment URL is unavailable for worker dispatch.');
+            return;
+        }
+
+        update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_STATUS, 'running');
+
+        $payload = [
+            'attachment_id' => $attachment_id,
+            'audio_url' => $audio_url,
+            'callback_url' => rest_url('wp-audio-buddy/v1/transcription-callback'),
+            'model' => (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe'),
+            'chunk_seconds' => max(60, absint($this->settings->get('worker_chunk_seconds', 660))),
+        ];
+
+        $raw = wp_json_encode($payload);
+        $signature = self::sign_payload($raw ?: '', $secret);
+
+        $response = wp_remote_post($worker_url, [
+            'timeout' => 45,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-WPAB-Signature' => $signature,
+            ],
+            'body' => $raw,
+        ]);
+
+        if (is_wp_error($response)) {
+            $this->fail($attachment_id, 'Worker request failed: ' . $response->get_error_message());
+            return;
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code >= 400) {
+            $this->fail($attachment_id, 'Worker rejected request: HTTP ' . $code);
+            return;
+        }
+
+        $this->logger->info('worker_dispatch', 'Worker transcription request accepted.', $attachment_id, ['worker_url' => $worker_url]);
+    }
+
     public function handle(int $attachment_id): void
     {
         if (! WPAB_Meta::is_audio_attachment($attachment_id)) {
@@ -123,19 +175,13 @@ final class WPAB_TranscriptionService
         $done = $this->count_done_chunks($attachment_id, $manifest);
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_CHUNKS_DONE, $done);
 
-        $has_error = false;
         foreach ($manifest as $chunk) {
             $idx = (int) ($chunk['index'] ?? 0);
             if ('error' === (string) get_post_meta($attachment_id, WPAB_Meta::chunk_status_key($idx), true)) {
-                $has_error = true;
                 $error = (string) get_post_meta($attachment_id, WPAB_Meta::chunk_error_key($idx), true);
                 $this->fail($attachment_id, 'Chunk #' . $idx . ' failed: ' . $error);
-                break;
+                return;
             }
-        }
-
-        if ($has_error) {
-            return;
         }
 
         if ($done < $total) {
@@ -163,7 +209,7 @@ final class WPAB_TranscriptionService
         $this->logger->info('transcription_stitch_complete', 'Chunk transcripts stitched and finalized.', $attachment_id, ['total' => $total]);
     }
 
-    private function save_final_transcript(int $attachment_id, string $transcript, string $model): void
+    public function save_final_transcript(int $attachment_id, string $transcript, string $model, ?int $seconds = null): void
     {
         if ($this->settings->get('auto_format_transcript')) {
             $transcript = $this->excerpt_service->format_transcript($transcript);
@@ -174,15 +220,22 @@ final class WPAB_TranscriptionService
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_MODEL, $model);
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_UPDATED, current_time('mysql'));
 
-        $meta = wp_get_attachment_metadata($attachment_id);
-        $length = is_array($meta) && isset($meta['length']) ? (int) $meta['length'] : 0;
-        update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_SECONDS, $length);
+        if (null === $seconds) {
+            $meta = wp_get_attachment_metadata($attachment_id);
+            $seconds = is_array($meta) && isset($meta['length']) ? (int) $meta['length'] : 0;
+        }
+        update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_SECONDS, max(0, (int) $seconds));
 
-        $this->logger->info('transcription', 'Transcription generated successfully.', $attachment_id, ['model' => $model]);
+        $this->logger->info('transcription', 'Transcription generated successfully.', $attachment_id, ['model' => $model, 'seconds' => $seconds]);
 
         if ($this->settings->get('auto_generate_excerpt')) {
             $this->queue->enqueue_excerpt($attachment_id);
         }
+    }
+
+    public static function sign_payload(string $raw_body, string $secret): string
+    {
+        return hash_hmac('sha256', $raw_body, $secret);
     }
 
     private function request_transcription(string $api_key, string $model, string $file_path, string $mime): array|WP_Error
@@ -235,7 +288,7 @@ final class WPAB_TranscriptionService
         $this->logger->error('transcription_chunk_error', $message, $attachment_id, ['chunk' => $chunk_index]);
     }
 
-    private function fail(int $attachment_id, string $message): void
+    public function fail(int $attachment_id, string $message): void
     {
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_STATUS, 'error');
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_ERROR, $message);

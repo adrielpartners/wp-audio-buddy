@@ -19,6 +19,7 @@ define('WPAB_URL', plugin_dir_url(__FILE__));
 require_once WPAB_PATH . 'includes/Meta.php';
 require_once WPAB_PATH . 'includes/Logger.php';
 require_once WPAB_PATH . 'includes/AudioChunker.php';
+require_once WPAB_PATH . 'includes/WorkerCallback.php';
 require_once WPAB_PATH . 'includes/Settings.php';
 require_once WPAB_PATH . 'includes/Queue.php';
 require_once WPAB_PATH . 'includes/TranscriptionService.php';
@@ -67,6 +68,7 @@ final class WP_Audio_Buddy
         $transcription_service = new WPAB_TranscriptionService($settings, $queue, $excerpt_service, $logger, $chunker);
         $bulk_tools = new WPAB_Bulk_Tools($queue, $logger);
         $logs_page = new WPAB_Logs_Page($logger);
+        new WPAB_Worker_Callback($settings, $logger, $transcription_service);
 
         add_action('admin_menu', static function () use ($settings, $logs_page): void {
             $settings->register_menu(WPAB_Bulk_Tools::PARENT_SLUG);

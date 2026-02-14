@@ -14,6 +14,7 @@ final class WPAB_Queue
     public function register_handlers(WPAB_TranscriptionService $transcription, WPAB_ExcerptService $excerpt): void
     {
         add_action('wpab_transcribe_attachment', [$transcription, 'handle'], 10, 1);
+        add_action('wpab_dispatch_worker_transcription', [$transcription, 'dispatch_to_worker'], 10, 1);
         add_action('wpab_transcribe_chunk', [$transcription, 'handle_chunk'], 10, 2);
         add_action('wpab_finalize_transcription', [$transcription, 'finalize_chunked_transcript'], 10, 1);
         add_action('wpab_generate_excerpt', [$excerpt, 'handle'], 10, 1);
@@ -23,8 +24,11 @@ final class WPAB_Queue
     {
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_STATUS, 'queued');
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_ERROR, '');
-        $this->enqueue('wpab_transcribe_attachment', [$attachment_id]);
-        $this->logger->info('enqueue_transcription', 'Queued transcription job.', $attachment_id);
+
+        $hook = $this->worker_enabled() ? 'wpab_dispatch_worker_transcription' : 'wpab_transcribe_attachment';
+        $this->enqueue($hook, [$attachment_id]);
+
+        $this->logger->info('enqueue_transcription', 'Queued transcription job.', $attachment_id, ['worker_mode' => $this->worker_enabled()]);
     }
 
     public function enqueue_transcription_chunk(int $attachment_id, int $chunk_index): void
@@ -72,5 +76,11 @@ final class WPAB_Queue
         }
 
         $this->enqueue_transcription($attachment_id);
+    }
+
+    private function worker_enabled(): bool
+    {
+        return '' !== trim((string) $this->settings->get('worker_url', ''))
+            && '' !== trim((string) $this->settings->get('worker_shared_secret', ''));
     }
 }

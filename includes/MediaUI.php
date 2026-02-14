@@ -31,6 +31,7 @@ final class WPAB_Media_UI
         $excerpt_status = WPAB_Meta::excerpt_status($post->ID);
         $err = (string) get_post_meta($post->ID, WPAB_Meta::TRANSCRIPT_ERROR, true);
         $chunk_progress = WPAB_Meta::chunk_progress_label($post->ID);
+        $worker_enabled = '' !== trim((string) $this->settings->get('worker_url', '')) && '' !== trim((string) $this->settings->get('worker_shared_secret', ''));
 
         $transcribe_url = wp_nonce_url(admin_url('admin-post.php?action=wpab_transcribe&attachment_id=' . $post->ID), 'wpab_transcribe_' . $post->ID);
         $excerpt_url = wp_nonce_url(admin_url('admin-post.php?action=wpab_excerpt&attachment_id=' . $post->ID), 'wpab_excerpt_' . $post->ID);
@@ -39,6 +40,8 @@ final class WPAB_Media_UI
         $actions .= '<p><strong>' . esc_html__('Transcription status:', 'wp-audio-buddy') . '</strong> ' . esc_html($status) . '</p>';
         if ('' !== $chunk_progress) {
             $actions .= '<p class="wpab-chunk-progress"><strong>' . esc_html__('Progress:', 'wp-audio-buddy') . '</strong> ' . esc_html($chunk_progress) . '</p>';
+        } elseif ($worker_enabled && in_array($status, ['queued', 'running'], true)) {
+            $actions .= '<p class="wpab-worker-progress"><strong>' . esc_html__('Worker:', 'wp-audio-buddy') . '</strong> ' . esc_html__('Processing on VPS worker…', 'wp-audio-buddy') . '</p>';
         }
         $actions .= '<p><strong>' . esc_html__('Excerpt status:', 'wp-audio-buddy') . '</strong> ' . esc_html($excerpt_status) . '</p>';
         $actions .= '<p><a class="button button-primary wpab-action-btn" href="' . esc_url($transcribe_url) . '">' . esc_html__('Transcribe Audio', 'wp-audio-buddy') . '</a>';
