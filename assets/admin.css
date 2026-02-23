@@ -17,7 +17,7 @@ textarea#attachment-details-two-column-wpab_excerpt,
 .compat-item textarea[name$="[wpab_excerpt]"] {
   width: 100%;
   max-width: none;
-  min-height: 220px;
+  min-height: 320px;
   box-sizing: border-box;
   resize: both;
 }

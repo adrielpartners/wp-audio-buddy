@@ -177,4 +177,31 @@ final class WPAB_ExcerptService
 
         return substr($clean, 0, max(0, $limit - 3)) . '...';
     }
+
+    private function extract_response_text(array $body): string
+    {
+        $text = (string) ($body['output_text'] ?? '');
+        if ('' !== trim($text)) {
+            return $text;
+        }
+
+        $chunks = [];
+        foreach ((array) ($body['output'] ?? []) as $item) {
+            foreach ((array) ($item['content'] ?? []) as $content) {
+                if ('output_text' === ($content['type'] ?? '') && isset($content['text'])) {
+                    $chunks[] = (string) $content['text'];
+                } elseif (isset($content['text'])) {
+                    $chunks[] = (string) $content['text'];
+                }
+            }
+        }
+
+        return trim(implode("\n", array_filter($chunks, static fn ($value): bool => '' !== trim((string) $value))));
+    }
+
+    private function is_temperature_unsupported_error(WP_Error $error): bool
+    {
+        $message = strtolower($error->get_error_message());
+        return str_contains($message, 'unsupported parameter') && str_contains($message, 'temperature');
+    }
 }
