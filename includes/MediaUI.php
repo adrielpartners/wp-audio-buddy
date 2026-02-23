@@ -29,7 +29,8 @@ final class WPAB_Media_UI
 
         $status = WPAB_Meta::transcript_status($post->ID);
         $excerpt_status = WPAB_Meta::excerpt_status($post->ID);
-        $err = (string) get_post_meta($post->ID, WPAB_Meta::TRANSCRIPT_ERROR, true);
+        $transcript_error = (string) get_post_meta($post->ID, WPAB_Meta::TRANSCRIPT_ERROR, true);
+        $excerpt_error = (string) get_post_meta($post->ID, WPAB_Meta::EXCERPT_ERROR, true);
         $chunk_progress = WPAB_Meta::chunk_progress_label($post->ID);
         $worker_enabled = '' !== trim((string) $this->settings->get('worker_url', '')) && '' !== trim((string) $this->settings->get('worker_shared_secret', ''));
 
@@ -47,8 +48,12 @@ final class WPAB_Media_UI
         $actions .= '<p><a class="button button-primary wpab-action-btn" href="' . esc_url($transcribe_url) . '">' . esc_html__('Transcribe Audio', 'wp-audio-buddy') . '</a>';
         $actions .= '<a class="button wpab-action-btn" href="' . esc_url($excerpt_url) . '">' . esc_html__('Generate Excerpt', 'wp-audio-buddy') . '</a></p>';
 
-        if ('' !== $err) {
-            $actions .= '<div class="notice notice-error inline"><p>' . esc_html($err) . '</p></div>';
+        if ('' !== $transcript_error) {
+            $actions .= '<div class="notice notice-error inline"><p><strong>' . esc_html__('Transcription error:', 'wp-audio-buddy') . '</strong> ' . esc_html($transcript_error) . '</p></div>';
+        }
+
+        if ('' !== $excerpt_error) {
+            $actions .= '<div class="notice notice-error inline"><p><strong>' . esc_html__('Excerpt error:', 'wp-audio-buddy') . '</strong> ' . esc_html($excerpt_error) . '</p></div>';
         }
 
         $actions .= '</div>';

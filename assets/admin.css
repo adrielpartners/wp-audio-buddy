@@ -8,10 +8,16 @@
 .wpab-chunk-progress { margin: 6px 0; }
 .wpab-worker-progress { margin: 6px 0; }
 
-/* Larger, resizable transcript/excerpt fields in media edit + modal screens */
+/* Full-width, larger, resizable transcript/excerpt fields on media edit + modal screens */
 textarea[name*="wpab_transcript"],
-textarea[name*="wpab_excerpt"] {
-  width: min(96vw, 1080px);
+textarea[name*="wpab_excerpt"],
+textarea#attachment-details-two-column-wpab_transcript,
+textarea#attachment-details-two-column-wpab_excerpt,
+.compat-item textarea[name$="[wpab_transcript]"],
+.compat-item textarea[name$="[wpab_excerpt]"] {
+  width: 100%;
+  max-width: none;
   min-height: 320px;
+  box-sizing: border-box;
   resize: both;
 }
