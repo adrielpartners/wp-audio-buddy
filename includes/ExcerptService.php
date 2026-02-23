@@ -140,6 +140,17 @@ final class WPAB_ExcerptService
             return '';
         }
 
+        $clean_text = trim($text);
+        $this->logger->info('excerpt', 'Excerpt request succeeded.', null, [
+            'model' => $model,
+            'characters' => function_exists('mb_strlen') ? mb_strlen($clean_text) : strlen($clean_text),
+        ]);
+
+        return $clean_text;
+    }
+
+    private function extract_response_text(array $body): string
+    {
         $text = (string) ($body['output_text'] ?? '');
         if ('' !== trim($text)) {
             return $text;
