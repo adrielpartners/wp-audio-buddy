@@ -25,10 +25,18 @@ final class WPAB_Queue
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_STATUS, 'queued');
         update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_ERROR, '');
 
-        $hook = $this->worker_enabled() ? 'wpab_dispatch_worker_transcription' : 'wpab_transcribe_attachment';
+        $decision = $this->should_use_worker($attachment_id);
+        if (is_wp_error($decision)) {
+            update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_STATUS, 'error');
+            update_post_meta($attachment_id, WPAB_Meta::TRANSCRIPT_ERROR, $decision->get_error_message());
+            $this->logger->error('enqueue_transcription', $decision->get_error_message(), $attachment_id);
+            return;
+        }
+
+        $hook = $decision ? 'wpab_dispatch_worker_transcription' : 'wpab_transcribe_attachment';
         $this->enqueue($hook, [$attachment_id]);
 
-        $this->logger->info('enqueue_transcription', 'Queued transcription job.', $attachment_id, ['worker_mode' => $this->worker_enabled()]);
+        $this->logger->info('enqueue_transcription', 'Queued transcription job.', $attachment_id, ['worker_mode' => $decision]);
     }
 
     public function enqueue_transcription_chunk(int $attachment_id, int $chunk_index): void
@@ -51,6 +59,40 @@ final class WPAB_Queue
         update_post_meta($attachment_id, WPAB_Meta::EXCERPT_STATUS, 'queued');
         $this->enqueue('wpab_generate_excerpt', [$attachment_id]);
         $this->logger->info('enqueue_excerpt', 'Queued excerpt job.', $attachment_id);
+    }
+
+
+    private function should_use_worker(int $attachment_id): bool|WP_Error
+    {
+        if (! $this->worker_enabled()) {
+            $file_path = (string) get_attached_file($attachment_id);
+            if ('' === $file_path || ! is_readable($file_path)) {
+                return new WP_Error('wpab_audio_file_missing', 'Audio file is missing or unreadable for direct transcription.');
+            }
+
+            return false;
+        }
+
+        $file_path = (string) get_attached_file($attachment_id);
+        if ('' === $file_path || ! is_readable($file_path)) {
+            $this->logger->info('enqueue_transcription', 'Audio file unavailable locally; using worker fallback.', $attachment_id);
+            return true;
+        }
+
+        $size = filesize($file_path);
+        if (false === $size) {
+            $this->logger->info('enqueue_transcription', 'Unable to read audio filesize locally; using worker fallback.', $attachment_id);
+            return true;
+        }
+
+        $use_worker = (int) $size > 20971520;
+        $this->logger->info('enqueue_transcription', 'Worker routing decision evaluated.', $attachment_id, [
+            'filesize' => (int) $size,
+            'threshold' => 20971520,
+            'use_worker' => $use_worker,
+        ]);
+
+        return $use_worker;
     }
 
     private function enqueue(string $hook, array $args): void

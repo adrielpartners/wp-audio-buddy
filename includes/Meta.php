@@ -20,6 +20,7 @@ final class WPAB_Meta
 
     public const EXCERPT = 'wpab_excerpt';
     public const EXCERPT_STATUS = 'wpab_excerpt_status';
+    public const EXCERPT_ERROR = 'wpab_excerpt_error';
     public const EXCERPT_MODEL = 'wpab_excerpt_model';
     public const EXCERPT_PROMPT_TYPE = 'wpab_excerpt_prompt_type';
     public const EXCERPT_PROMPT_CUSTOM = 'wpab_excerpt_prompt_custom';

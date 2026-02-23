@@ -18,7 +18,7 @@ final class WPAB_Settings
         return [
             'api_key' => '',
             'transcription_model' => 'gpt-4o-mini-transcribe',
-            'excerpt_model' => 'gpt-5-nano',
+            'excerpt_model' => 'gpt-5-mini',
             'auto_transcribe_upload' => 0,
             'auto_generate_excerpt' => 0,
             'auto_format_transcript' => 1,
