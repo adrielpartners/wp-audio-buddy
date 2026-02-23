@@ -16,10 +16,6 @@ final class WPAB_AudioChunker
             return new WP_Error('wpab_chunk_source_missing', 'Audio source file is missing.');
         }
 
-        if (! $this->has_ffmpeg()) {
-            return new WP_Error('wpab_ffmpeg_missing', 'FFmpeg is required for long-audio transcription but is not available on this server.');
-        }
-
         $duration = $this->probe_duration($source_path);
         $size = (int) filesize($source_path);
         $needs_chunking = ($duration > self::CHUNK_HARD_CAP_SECONDS) || ($size > self::MAX_CHUNK_BYTES);
@@ -37,6 +33,10 @@ final class WPAB_AudioChunker
                 'total' => 1,
                 'duration' => $duration,
             ];
+        }
+
+        if (! $this->has_ffmpeg()) {
+            return new WP_Error('wpab_ffmpeg_missing', 'FFmpeg is required for long-audio transcription but is not available on this server.');
         }
 
         $tmp_dir = $this->temp_dir($attachment_id);
