@@ -89,9 +89,7 @@ final class WPAB_ExcerptService
 
         $response = $this->request_responses_api($api_key, $payload, $model);
         if (is_wp_error($response) && isset($payload['temperature']) && $this->is_temperature_unsupported_error($response)) {
-            $this->logger->info('excerpt', 'Retrying excerpt request without temperature.', null, [
-                'model' => $model,
-            ]);
+            $this->logger->info('excerpt', 'Retrying excerpt request without temperature.', null, ['model' => $model]);
             unset($payload['temperature']);
             $response = $this->request_responses_api($api_key, $payload, $model);
         }
@@ -121,10 +119,25 @@ final class WPAB_ExcerptService
             return new WP_Error('wpab_openai_error', $message);
         }
 
-        $text = $this->extract_response_text(is_array($body) ? $body : []);
+        $text = $this->extract_output_text($body);
         if ('' === trim($text)) {
             $this->logger->error('excerpt', 'Excerpt request failed: empty text response.', null, ['model' => $model]);
             return new WP_Error('wpab_empty_response', 'No text returned from OpenAI.');
+        }
+
+        $clean_text = trim($text);
+        $this->logger->info('excerpt', 'Excerpt request succeeded.', null, [
+            'model' => $model,
+            'characters' => function_exists('mb_strlen') ? mb_strlen($clean_text) : strlen($clean_text),
+        ]);
+
+        return $clean_text;
+    }
+
+    private function extract_output_text(mixed $body): string
+    {
+        if (! is_array($body)) {
+            return '';
         }
 
         $clean_text = trim($text);
@@ -146,9 +159,7 @@ final class WPAB_ExcerptService
         $chunks = [];
         foreach ((array) ($body['output'] ?? []) as $item) {
             foreach ((array) ($item['content'] ?? []) as $content) {
-                if ('output_text' === ($content['type'] ?? '') && isset($content['text'])) {
-                    $chunks[] = (string) $content['text'];
-                } elseif (isset($content['text'])) {
+                if (isset($content['text'])) {
                     $chunks[] = (string) $content['text'];
                 }
             }
@@ -160,6 +171,7 @@ final class WPAB_ExcerptService
     private function is_temperature_unsupported_error(WP_Error $error): bool
     {
         $message = strtolower($error->get_error_message());
+
         return str_contains($message, 'temperature')
             && (str_contains($message, 'unsupported parameter') || str_contains($message, 'not supported'));
     }
@@ -176,32 +188,5 @@ final class WPAB_ExcerptService
         }
 
         return substr($clean, 0, max(0, $limit - 3)) . '...';
-    }
-
-    private function extract_response_text(array $body): string
-    {
-        $text = (string) ($body['output_text'] ?? '');
-        if ('' !== trim($text)) {
-            return $text;
-        }
-
-        $chunks = [];
-        foreach ((array) ($body['output'] ?? []) as $item) {
-            foreach ((array) ($item['content'] ?? []) as $content) {
-                if ('output_text' === ($content['type'] ?? '') && isset($content['text'])) {
-                    $chunks[] = (string) $content['text'];
-                } elseif (isset($content['text'])) {
-                    $chunks[] = (string) $content['text'];
-                }
-            }
-        }
-
-        return trim(implode("\n", array_filter($chunks, static fn ($value): bool => '' !== trim((string) $value))));
-    }
-
-    private function is_temperature_unsupported_error(WP_Error $error): bool
-    {
-        $message = strtolower($error->get_error_message());
-        return str_contains($message, 'unsupported parameter') && str_contains($message, 'temperature');
     }
 }
