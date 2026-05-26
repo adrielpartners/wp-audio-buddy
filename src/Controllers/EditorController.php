@@ -1,12 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
+namespace AdrielPartners\WpAudioBuddy\Controllers;
+
+use AdrielPartners\WpAudioBuddy\Data\Meta;
+
 if (! defined('ABSPATH')) {
     exit;
 }
 
-final class WPAB_Editor_UI
+final class EditorController
 {
-    public function __construct(private WPAB_Settings $settings)
+    public function __construct(private SettingsController $settings)
     {
         add_action('add_meta_boxes', [$this, 'meta_boxes']);
     }
@@ -21,7 +27,7 @@ final class WPAB_Editor_UI
         add_meta_box('wpab_editor_copy', __('WP Audio Buddy', 'wp-audio-buddy'), [$this, 'render'], $post_type, 'side', 'default');
     }
 
-    public function render(WP_Post $post): void
+    public function render(\WP_Post $post): void
     {
         $can_copy_transcript = (bool) $this->settings->get('enable_copy_transcript');
         $can_copy_excerpt = (bool) $this->settings->get('enable_copy_excerpt');
@@ -49,8 +55,8 @@ final class WPAB_Editor_UI
             $items[] = [
                 'id' => $attachment->ID,
                 'title' => get_the_title($attachment),
-                'transcript' => (string) get_post_meta($attachment->ID, WPAB_Meta::TRANSCRIPT, true),
-                'excerpt' => (string) get_post_meta($attachment->ID, WPAB_Meta::EXCERPT, true),
+                'transcript' => (string) get_post_meta($attachment->ID, Meta::TRANSCRIPT, true),
+                'excerpt' => (string) get_post_meta($attachment->ID, Meta::EXCERPT, true),
             ];
         }
 

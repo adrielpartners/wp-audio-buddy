@@ -1,15 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
+namespace AdrielPartners\WpAudioBuddy\Controllers;
+
+use AdrielPartners\WpAudioBuddy\Data\JobRepository;
+use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
+use AdrielPartners\WpAudioBuddy\Data\Meta;
+use AdrielPartners\WpAudioBuddy\Services\QueueService;
+
 if (! defined('ABSPATH')) {
     exit;
 }
 
-final class WPAB_Bulk_Tools
+final class BulkToolsController
 {
     public const PARENT_SLUG = 'wpab';
 
-    public function __construct(private WPAB_Queue $queue, private WPAB_Logger $logger)
-    {
+    public function __construct(
+        private QueueService $queue,
+        private LoggerRepository $logger,
+        private JobRepository $jobs
+    ) {
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_post_wpab_bulk_transcribe', [$this, 'bulk_transcribe']);
         add_action('admin_post_wpab_bulk_excerpt', [$this, 'bulk_excerpt']);
@@ -61,8 +73,8 @@ final class WPAB_Bulk_Tools
             'fields' => 'ids',
             'meta_query' => [
                 'relation' => 'OR',
-                ['key' => WPAB_Meta::TRANSCRIPT, 'compare' => 'NOT EXISTS'],
-                ['key' => WPAB_Meta::TRANSCRIPT, 'value' => '', 'compare' => '='],
+                ['key' => Meta::TRANSCRIPT, 'compare' => 'NOT EXISTS'],
+                ['key' => Meta::TRANSCRIPT, 'value' => '', 'compare' => '='],
             ],
         ]);
 
@@ -85,7 +97,7 @@ final class WPAB_Bulk_Tools
             'posts_per_page' => -1,
             'post_mime_type' => ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/x-wav'],
             'fields' => 'ids',
-            'meta_query' => [[ 'key' => WPAB_Meta::TRANSCRIPT, 'value' => '', 'compare' => '!=' ]],
+            'meta_query' => [['key' => Meta::TRANSCRIPT, 'value' => '', 'compare' => '!=']],
         ]);
 
         foreach ($attachments as $id) {
@@ -102,9 +114,13 @@ final class WPAB_Bulk_Tools
         global $wpdb;
 
         $audio = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='attachment' AND post_mime_type LIKE 'audio/%'");
-        $queued = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s,%s) AND meta_value='queued'", WPAB_Meta::TRANSCRIPT_STATUS, WPAB_Meta::EXCERPT_STATUS));
-        $completed = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s,%s) AND meta_value='done'", WPAB_Meta::TRANSCRIPT_STATUS, WPAB_Meta::EXCERPT_STATUS));
-        $errors = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s,%s) AND meta_value='error'", WPAB_Meta::TRANSCRIPT_STATUS, WPAB_Meta::EXCERPT_STATUS));
+        $pm_queued = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s,%s) AND meta_value='queued'", Meta::TRANSCRIPT_STATUS, Meta::EXCERPT_STATUS));
+        $pm_completed = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s,%s) AND meta_value='done'", Meta::TRANSCRIPT_STATUS, Meta::EXCERPT_STATUS));
+        $pm_errors = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key IN (%s,%s) AND meta_value='error'", Meta::TRANSCRIPT_STATUS, Meta::EXCERPT_STATUS));
+
+        $queued = max($pm_queued, $this->jobs->count_by_status('queued'));
+        $completed = max($pm_completed, $this->jobs->count_by_status('completed'));
+        $errors = max($pm_errors, $this->jobs->count_by_status('failed') + $this->jobs->count_by_status('retryable') + $this->jobs->count_by_status('cancelled'));
 
         return compact('audio', 'queued', 'completed', 'errors');
     }

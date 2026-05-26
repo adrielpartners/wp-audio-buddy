@@ -1,19 +1,23 @@
 <?php
 
+declare(strict_types=1);
+
+namespace AdrielPartners\WpAudioBuddy\Support;
+
 if (! defined('ABSPATH')) {
     exit;
 }
 
-final class WPAB_AudioChunker
+final class AudioChunker
 {
     private const CHUNK_SECONDS = 660;
     private const CHUNK_HARD_CAP_SECONDS = 900;
     private const MAX_CHUNK_BYTES = 20971520; // 20MB
 
-    public function prepare(string $source_path, int $attachment_id): array|WP_Error
+    public function prepare(string $source_path, int $attachment_id): array|\WP_Error
     {
         if (! file_exists($source_path)) {
-            return new WP_Error('wpab_chunk_source_missing', 'Audio source file is missing.');
+            return new \WP_Error('wpab_chunk_source_missing', 'Audio source file is missing.');
         }
 
         $duration = $this->probe_duration($source_path);
@@ -36,12 +40,12 @@ final class WPAB_AudioChunker
         }
 
         if (! $this->has_ffmpeg()) {
-            return new WP_Error('wpab_ffmpeg_missing', 'FFmpeg is required for long-audio transcription but is not available on this server.');
+            return new \WP_Error('wpab_ffmpeg_missing', 'FFmpeg is required for long-audio transcription but is not available on this server.');
         }
 
         $tmp_dir = $this->temp_dir($attachment_id);
         if (! wp_mkdir_p($tmp_dir)) {
-            return new WP_Error('wpab_chunk_tmp_dir', 'Unable to create temporary directory for audio chunks.');
+            return new \WP_Error('wpab_chunk_tmp_dir', 'Unable to create temporary directory for audio chunks.');
         }
 
         $chunks = $duration > 0
@@ -53,7 +57,7 @@ final class WPAB_AudioChunker
         }
 
         if (empty($chunks)) {
-            return new WP_Error('wpab_chunk_empty', 'Audio chunking produced no chunks.');
+            return new \WP_Error('wpab_chunk_empty', 'Audio chunking produced no chunks.');
         }
 
         return [
@@ -120,7 +124,7 @@ final class WPAB_AudioChunker
         return max(0, (float) trim((string) $output[0]));
     }
 
-    private function chunk_with_known_duration(string $source_path, string $tmp_dir, float $duration): array|WP_Error
+    private function chunk_with_known_duration(string $source_path, string $tmp_dir, float $duration): array|\WP_Error
     {
         $chunks = [];
         $index = 0;
@@ -143,7 +147,7 @@ final class WPAB_AudioChunker
             }
 
             if (filesize($chunk_path) > self::MAX_CHUNK_BYTES) {
-                return new WP_Error('wpab_chunk_size', 'Chunk exceeds max upload-safe size even after re-encode.');
+                return new \WP_Error('wpab_chunk_size', 'Chunk exceeds max upload-safe size even after re-encode.');
             }
 
             $chunks[] = [
@@ -160,7 +164,7 @@ final class WPAB_AudioChunker
         return $chunks;
     }
 
-    private function chunk_with_segmenter(string $source_path, string $tmp_dir): array|WP_Error
+    private function chunk_with_segmenter(string $source_path, string $tmp_dir): array|\WP_Error
     {
         $pattern = trailingslashit($tmp_dir) . 'chunk-%04d.mp3';
         $cmd = 'ffmpeg -hide_banner -loglevel error -y -i ' . escapeshellarg($source_path) .
@@ -171,7 +175,7 @@ final class WPAB_AudioChunker
         @exec($cmd, $output, $return);
 
         if (0 !== $return) {
-            return new WP_Error('wpab_chunk_ffmpeg', 'FFmpeg failed to split audio: ' . implode("\n", $output));
+            return new \WP_Error('wpab_chunk_ffmpeg', 'FFmpeg failed to split audio: ' . implode("\n", $output));
         }
 
         $files = glob(trailingslashit($tmp_dir) . 'chunk-*.mp3');
@@ -183,7 +187,7 @@ final class WPAB_AudioChunker
         $chunks = [];
         foreach (array_values($files) as $index => $file) {
             if (filesize($file) > self::MAX_CHUNK_BYTES) {
-                return new WP_Error('wpab_chunk_size', 'Chunk exceeds max upload-safe size; duration probe unavailable for adaptive split.');
+                return new \WP_Error('wpab_chunk_size', 'Chunk exceeds max upload-safe size; duration probe unavailable for adaptive split.');
             }
 
             $chunks[] = [
@@ -196,7 +200,7 @@ final class WPAB_AudioChunker
         return $chunks;
     }
 
-    private function encode_chunk(string $source_path, string $chunk_path, float $start, float $length, int $bitrate_kbps): bool|WP_Error
+    private function encode_chunk(string $source_path, string $chunk_path, float $start, float $length, int $bitrate_kbps): bool|\WP_Error
     {
         $cmd = sprintf(
             'ffmpeg -hide_banner -loglevel error -y -ss %s -t %s -i %s -ac 1 -ar 16000 -b:a %sk %s 2>&1',
@@ -212,7 +216,7 @@ final class WPAB_AudioChunker
         @exec($cmd, $output, $return);
 
         if (0 !== $return || ! file_exists($chunk_path)) {
-            return new WP_Error('wpab_chunk_encode', 'Failed creating chunk: ' . implode("\n", $output));
+            return new \WP_Error('wpab_chunk_encode', 'Failed creating chunk: ' . implode("\n", $output));
         }
 
         return true;

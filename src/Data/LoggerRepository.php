@@ -1,10 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
+namespace AdrielPartners\WpAudioBuddy\Data;
+
 if (! defined('ABSPATH')) {
     exit;
 }
 
-final class WPAB_Logger
+final class LoggerRepository
 {
     public const TABLE = 'wpab_logs';
 

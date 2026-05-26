@@ -1,12 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
+namespace AdrielPartners\WpAudioBuddy\Controllers;
+
+use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
+
 if (! defined('ABSPATH')) {
     exit;
 }
 
-final class WPAB_Logs_Page
+final class LogsController
 {
-    public function __construct(private WPAB_Logger $logger)
+    public function __construct(private LoggerRepository $logger)
     {
         add_action('admin_post_wpab_clear_logs', [$this, 'clear_logs']);
     }
@@ -70,7 +76,7 @@ final class WPAB_Logs_Page
         check_admin_referer('wpab_clear_logs');
 
         global $wpdb;
-        $wpdb->query('TRUNCATE TABLE ' . $wpdb->prefix . WPAB_Logger::TABLE);
+        $wpdb->query('TRUNCATE TABLE ' . $wpdb->prefix . LoggerRepository::TABLE);
 
         wp_safe_redirect(admin_url('admin.php?page=wpab-logs'));
         exit;

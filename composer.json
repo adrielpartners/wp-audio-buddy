@@ -1,0 +1,24 @@
+{
+    "name": "adrielpartners/wp-audio-buddy",
+    "description": "Transcribe audio attachments with OpenAI and generate reusable AI excerpts.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "autoload": {
+        "psr-4": {
+            "AdrielPartners\\WpAudioBuddy\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.0"
+    },
+    "config": {
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test-unit": "phpunit tests/Unit"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    }
+}

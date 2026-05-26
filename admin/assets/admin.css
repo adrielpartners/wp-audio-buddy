@@ -7,6 +7,11 @@
 .wpab-log-level-info { color: #2271b1; }
 .wpab-chunk-progress { margin: 6px 0; }
 .wpab-worker-progress { margin: 6px 0; }
+.wpab-meta { margin: 6px 0; font-size: 11px; color: #646970; }
+.wpab-meta-item { display: inline-block; }
+.wpab-copy-area { margin: 8px 0; }
+.wpab-copy-btn { margin-right: 4px; }
+.wpab-transcript-collapse { margin-top: 4px; }
 
 /* Full-width, larger, resizable transcript/excerpt fields on media edit + modal screens */
 textarea[name*="wpab_transcript"],

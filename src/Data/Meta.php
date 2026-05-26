@@ -1,10 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
+namespace AdrielPartners\WpAudioBuddy\Data;
+
 if (! defined('ABSPATH')) {
     exit;
 }
 
-final class WPAB_Meta
+final class Meta
 {
     public const TRANSCRIPT = 'wpab_transcript';
     public const TRANSCRIPT_STATUS = 'wpab_transcript_status';
