@@ -56,8 +56,11 @@ return [
             'default_model'  => 'gpt-4o-mini',
             'models'         => [
                 // slug => [cost_in (input), cost_out (output)] per 1M tokens
-                'gpt-4o-mini' => ['cost_in' => 0.15, 'cost_out' => 0.60],  // GPT-4o Mini ($0.15/$0.60)
-                'gpt-4o'      => ['cost_in' => 2.50, 'cost_out' => 10.00], // GPT-4o ($2.50/$10.00)
+                'gpt-4o-mini'       => ['cost_in' => 0.15, 'cost_out' => 0.60],  // GPT-4o Mini ($0.15/$0.60)
+                'gpt-4o'            => ['cost_in' => 2.50, 'cost_out' => 10.00], // GPT-4o ($2.50/$10.00)
+                'gpt-4o-audio'      => ['cost_in' => 2.50, 'cost_out' => 10.00], // GPT-4o Audio ($2.50/$10.00)
+                'gpt-audio'         => ['cost_in' => 2.50, 'cost_out' => 10.00], // GPT Audio ($2.50/$10.00)
+                'gpt-audio-mini'    => ['cost_in' => 0.60, 'cost_out' => 2.40],  // GPT Audio Mini ($0.60/$2.40)
             ],
         ],
     ],
@@ -94,11 +97,17 @@ return [
         'endpoint'  => 'https://openrouter.ai/api',
         'docs_url'  => 'https://openrouter.ai/keys',
 
+        // OpenRouter supports transcription via their /v1/audio/transcriptions endpoint
+        // and offers multimodal audio models for chat completions.
         'transcription' => [
             'class'          => \AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenRouterProvider::class,
             'default_model'  => 'openai/whisper-1',
             'models'         => [
-                'openai/whisper-1' => ['cost' => '0.36/min'],  // $0.36 per minute
+                'openai/whisper-1'         => ['cost' => '0.36/min'],  // Whisper via OpenRouter API
+                'openai/gpt-4o-audio'      => ['cost' => '2.50/min'],  // GPT-4o Audio (multimodal)
+                'openai/gpt-audio'         => ['cost' => '2.50/min'],  // GPT Audio (multimodal)
+                'openai/gpt-audio-mini'    => ['cost' => '0.60/min'],  // GPT Audio Mini (multimodal)
+                'openai/gpt-4o-audio-preview' => ['cost' => '2.50/min'], // GPT-4o Audio Preview (multimodal)
             ],
         ],
         'text' => [
@@ -113,6 +122,7 @@ return [
                 'qwen/qwen3-32b'             => ['cost_in' => 0.08, 'cost_out' => 0.28],  // Qwen3 32B
                 'google/gemini-2.0-flash-001'=> ['cost_in' => 0.10, 'cost_out' => 0.40],  // Gemini 2.0 Flash
                 'anthropic/claude-3-haiku'   => ['cost_in' => 0.25, 'cost_out' => 1.25],  // Claude 3 Haiku
+                'anthropic/claude-3-5-sonnet-20241022' => ['cost_in' => 3.00, 'cost_out' => 15.00], // Claude 3.5 Sonnet
                 'moonshotai/kimi-k2'         => ['cost_in' => 0.57, 'cost_out' => 2.30],  // Kimi K2
             ],
         ],

@@ -9,19 +9,32 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * OpenRouter provider — text generation only, via OpenAI-compatible API.
+ * OpenRouter provider — supports both transcription and text generation
+ * via OpenAI-compatible endpoints.
  *
  * Adds required OpenRouter headers (HTTP-Referer, X-Title).
+ * For transcription, delegates to OpenAIProvider with OpenRouter's base URL.
+ * For text generation, uses wp_safe_remote_post with OpenRouter headers.
  */
-final class OpenRouterProvider implements TextGenerationProviderInterface
+final class OpenRouterProvider implements TranscriptionProviderInterface, TextGenerationProviderInterface
 {
+    public function transcribe(string $file_path, string $mime, array $config): array|\WP_Error
+    {
+        // Delegate to OpenAIProvider with OpenRouter-specific config.
+        $config['endpoint'] = $config['endpoint'] ?? 'https://openrouter.ai/api';
+        $config['model'] = $config['model'] ?? 'openai/whisper-1';
+
+        $openai = new OpenAIProvider();
+        return $openai->transcribe($file_path, $mime, $config);
+    }
+
     public function generate(string $prompt, array $config): string|\WP_Error
     {
         $api_key = (string) ($config['api_key'] ?? '');
         $model = (string) ($config['model'] ?? 'openai/gpt-4o-mini');
-        $endpoint = rtrim((string) ($config['endpoint'] ?? 'https://openrouter.ai/api/v1'), '/');
+        $endpoint = rtrim((string) ($config['endpoint'] ?? 'https://openrouter.ai/api'), '/');
         $temperature = $config['temperature'] ?? null;
-        $site_url = get_site_url();
+        $site_url = function_exists('get_site_url') ? get_site_url() : '';
 
         if ('' === $api_key) {
             return new \WP_Error('AUTH_FAILED', 'OpenRouter API key is missing.');
