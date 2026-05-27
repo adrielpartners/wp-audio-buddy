@@ -203,11 +203,16 @@ public function __construct(
             'max_words' => $max_words,
         ]);
 
-        $response = $this->openai->generate_text($api_key, $model, $payload);
-        if (is_wp_error($response) && isset($payload['temperature']) && $this->is_temperature_unsupported_error($response)) {
-            $this->logger->info('excerpt', 'Retrying excerpt request without temperature.', null, ['model' => $model]);
-            unset($payload['temperature']);
-            $response = $this->openai->generate_text($api_key, $model, $payload);
+        $provider = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getTextGenerationProvider($config['provider']);
+        if ($provider === null) {
+            return new \WP_Error('PROVIDER_UNAVAILABLE', 'No text generation provider available for: ' . ($config['provider'] ?? 'none'));
+        }
+
+        $response = $provider->generate($input, $config);
+        if (is_wp_error($response) && isset($payload['temperature'])) {
+            // Retry without temperature if the model doesn't support it.
+            $config['temperature'] = null;
+            $response = $provider->generate($input, $config);
         }
 
         if (is_wp_error($response)) {
@@ -220,13 +225,5 @@ public function __construct(
         }
 
         return $response;
-    }
-
-    private function is_temperature_unsupported_error(\WP_Error $error): bool
-    {
-        $message = strtolower($error->get_error_message());
-
-        return str_contains($message, 'temperature')
-            && (str_contains($message, 'unsupported parameter') || str_contains($message, 'not supported'));
     }
 }
