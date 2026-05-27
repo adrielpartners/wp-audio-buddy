@@ -35,6 +35,8 @@ final class OpenAIProvider implements TranscriptionProviderInterface, TextGenera
         $api_key = (string) ($config['api_key'] ?? '');
         $model = (string) ($config['model'] ?? 'gpt-4o-mini-transcribe');
         $endpoint = rtrim((string) ($config['endpoint'] ?? 'https://api.openai.com'), '/');
+        // Normalize: strip trailing /v1 so the code below can safely append it.
+        $endpoint = preg_replace('#/v1$#', '', $endpoint);
 
         if ('' === $api_key) {
             return new \WP_Error(self::ERROR_OPENAI_AUTH, 'OpenAI API key is missing.');
