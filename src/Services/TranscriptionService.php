@@ -9,6 +9,7 @@ use AdrielPartners\WpAudioBuddy\Data\JobRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Meta;
 use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenAIProvider;
 use AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry;
 use AdrielPartners\WpAudioBuddy\Integrations\WorkerClient;
 use AdrielPartners\WpAudioBuddy\Support\AudioChunker;

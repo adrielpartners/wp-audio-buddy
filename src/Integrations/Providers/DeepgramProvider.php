@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AdrielPartners\WpAudioBuddy\Integrations;
+namespace AdrielPartners\WpAudioBuddy\Integrations\Providers;
 
 if (! defined('ABSPATH')) {
     exit;

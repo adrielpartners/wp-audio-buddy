@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace AdrielPartners\WpAudioBuddy\Integrations;
 
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\AnthropicProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\DeepgramProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\DeepSeekProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\GeminiProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\GroqProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenAIProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenRouterProvider;
+
 if (! defined('ABSPATH')) {
     exit;
 }
