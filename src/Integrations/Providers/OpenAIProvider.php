@@ -70,7 +70,7 @@ final class OpenAIProvider implements TranscriptionProviderInterface, TextGenera
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 300,
             CURLOPT_CONNECTTIMEOUT => 30,
-            CURLOPT_HTTPHEADER => [
+CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . $api_key,
             ],
         ]);
