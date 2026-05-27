@@ -75,6 +75,8 @@ final class Plugin
     {
         // Load global-scope template functions.
         require_once WPAB_PATH . 'src/Support/template-functions.php';
+        // Load view helper functions.
+        require_once WPAB_PATH . 'admin/views/media-helpers.php';
 
         $this->settings = new SettingsController();
         $this->logger = new LoggerRepository();
@@ -85,7 +87,7 @@ final class Plugin
         $this->worker = new WorkerClient($this->settings, $this->logger);
         $this->outputs = new GeneratedOutputRepository();
         $this->queue = new QueueService($this->settings, $this->logger, $this->jobs);
-        $this->excerpt_service = new ExcerptService($this->settings, $this->logger, $this->openai, $this->outputs);
+        $this->excerpt_service = new ExcerptService($this->settings, $this->logger, $this->openai, $this->outputs, $this->jobs);
         $this->transcription_service = new TranscriptionService(
             $this->settings,
             $this->queue,

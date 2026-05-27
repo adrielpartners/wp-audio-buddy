@@ -6,6 +6,7 @@ namespace AdrielPartners\WpAudioBuddy\Services;
 
 use AdrielPartners\WpAudioBuddy\Controllers\SettingsController;
 use AdrielPartners\WpAudioBuddy\Data\GeneratedOutputRepository;
+use AdrielPartners\WpAudioBuddy\Data\JobRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Meta;
 use AdrielPartners\WpAudioBuddy\Integrations\OpenAIClient;
@@ -20,7 +21,8 @@ final class ExcerptService
         private SettingsController $settings,
         private LoggerRepository $logger,
         private OpenAIClient $openai,
-        private GeneratedOutputRepository $outputs
+        private GeneratedOutputRepository $outputs,
+        private JobRepository $jobs
     ) {
     }
 
@@ -82,19 +84,25 @@ final class ExcerptService
         $message = $error->get_error_message();
 
         if (OpenAIClient::is_transient_error($error)) {
-            // For excerpt generation, retry up to 2 times via Action Scheduler re-enqueue.
-            $count_key = 'wpab_excerpt_retry_count_' . $attachment_id;
-            $attempts = (int) get_transient($count_key);
+            $job = $this->jobs->get_latest_for_attachment($attachment_id);
+            $attempts = 0;
+            if ($job !== null && ($job['operation'] ?? '') === 'excerpt') {
+                $attempts = (int) ($job['attempt_count'] ?? 0);
+            }
 
             if ($attempts < OpenAIClient::MAX_RETRIES) {
-                set_transient($count_key, $attempts + 1, HOUR_IN_SECONDS);
+                if ($job !== null) {
+                    $this->jobs->update((int) $job['id'], [
+                        'attempt_count' => $attempts + 1,
+                        'status' => 'queued',
+                    ]);
+                }
                 update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'queued');
                 $this->logger->info('excerpt_retry', 'Retrying excerpt after transient error.', $attachment_id, [
                     'attempt' => $attempts + 1,
                     'max' => OpenAIClient::MAX_RETRIES,
                     'error' => $message,
                 ]);
-                // Re-enqueue via the same hook.
                 if (function_exists('as_enqueue_async_action')) {
                     as_enqueue_async_action('wpab_generate_excerpt', [$attachment_id], 'wp-audio-buddy');
                 }
@@ -102,7 +110,6 @@ final class ExcerptService
             }
 
             $message = 'Excerpt failed after ' . OpenAIClient::MAX_RETRIES . ' attempts: ' . $message;
-            delete_transient($count_key);
         }
 
         update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'error');
