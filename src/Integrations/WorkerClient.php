@@ -51,6 +51,11 @@ final class WorkerClient
         }
 
         $timestamp = time();
+        $provider_config = $this->settings->getProviderConfig('transcription');
+        $provider_slug = (string) ($provider_config['provider'] ?? 'openai');
+        $chunk_seconds = 'openrouter' === $provider_slug
+            ? 55
+            : max(60, absint($this->settings->get('worker_chunk_seconds', 660)));
         $payload = [
             'job_id' => $job_id,
             'job_uuid' => $job_uuid,
@@ -58,8 +63,12 @@ final class WorkerClient
             'operation' => 'transcribe',
             'audio_url' => $audio_url,
             'callback_url' => rest_url('wpab/v1/worker-callback'),
-            'model' => (string) $this->settings->getProviderConfig('transcription')['model'],
-            'chunk_seconds' => max(60, absint($this->settings->get('worker_chunk_seconds', 660))),
+            'provider' => $provider_slug,
+            'provider_config' => [
+                'endpoint' => (string) ($provider_config['endpoint'] ?? ''),
+            ],
+            'model' => (string) ($provider_config['model'] ?? ''),
+            'chunk_seconds' => $chunk_seconds,
             'timestamp' => $timestamp,
         ];
 
