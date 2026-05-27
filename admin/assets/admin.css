@@ -1,28 +1,39 @@
-.wpab-action-btn { margin-right: 6px; }
-.wpab-editor-copy .button { width: 100%; margin-bottom: 6px; }
-.wpab-copy-message { min-height: 18px; }
-.wpab-media-actions .notice.inline { margin-top: 8px; }
-.wpab-log-level { font-weight: 600; }
-.wpab-log-level-error { color: #b32d2e; }
-.wpab-log-level-info { color: #2271b1; }
-.wpab-chunk-progress { margin: 6px 0; }
+.wpab-settings h2 { margin: 1.5em 0 0.5em; }
+.wpab-settings .wpab-provider-panel {
+    margin-top: 8px;
+    padding: 12px 16px;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+}
+.wpab-settings .wpab-provider-panel p { margin: 6px 0; }
+.wpab-settings .wpab-provider-panel .description { margin: 4px 0 0; }
+.wpab-settings .wpab-endpoint-field { display: block; }
+.wpab-settings .wpab-provider-docs { margin-top: 6px !important; }
+.wpab-settings select.wpab-provider-select { min-width: 200px; }
+.wpab-settings select.wpab-provider-model { min-width: 300px; }
+.wpab-settings .wpab-media-actions { margin: 1em 0 0; }
+.wpab-settings .wpab-media-actions p { margin: 0.5em 0; }
+.wpab-settings .wpab-action-btn { margin-right: 8px; }
+/* Full-width, larger, resizable transcript/excerpt fields on media edit + modal screens */
+textarea[name*="wpab_transcript"],
+textarea[name*="wpab_excerpt"],
+textarea[name*="wpab_attempt_transcript"],
+.compat-field-wpab_transcript textarea,
+.compat-field-wpab_excerpt textarea {
+    width: 100% !important;
+    min-height: 320px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.compat-field-wpab_transcript td,
+.compat-field-wpab_excerpt td {
+    padding-bottom: 0;
+}
 .wpab-worker-progress { margin: 6px 0; }
 .wpab-meta { margin: 6px 0; font-size: 11px; color: #646970; }
 .wpab-meta-item { display: inline-block; }
 .wpab-copy-area { margin: 8px 0; }
-.wpab-copy-btn { margin-right: 4px; }
-.wpab-transcript-collapse { margin-top: 4px; }
-
-/* Full-width, larger, resizable transcript/excerpt fields on media edit + modal screens */
-textarea[name*="wpab_transcript"],
-textarea[name*="wpab_excerpt"],
-textarea#attachment-details-two-column-wpab_transcript,
-textarea#attachment-details-two-column-wpab_excerpt,
-.compat-item textarea[name$="[wpab_transcript]"],
-.compat-item textarea[name$="[wpab_excerpt]"] {
-  width: 100%;
-  max-width: none;
-  min-height: 320px;
-  box-sizing: border-box;
-  resize: both;
-}
+.wpab-copy-btn { margin-right: 4px !important; }
+.wpab-transcript-collapse { margin: 4px 0; }

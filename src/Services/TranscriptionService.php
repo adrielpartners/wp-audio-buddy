@@ -9,7 +9,7 @@ use AdrielPartners\WpAudioBuddy\Data\JobRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Meta;
 use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
-use AdrielPartners\WpAudioBuddy\Integrations\OpenAIClient;
+use AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry;
 use AdrielPartners\WpAudioBuddy\Integrations\WorkerClient;
 use AdrielPartners\WpAudioBuddy\Support\AudioChunker;
 
@@ -27,7 +27,6 @@ final class TranscriptionService
         private AudioChunker $chunker,
         private JobRepository $jobs,
         private TranscriptRepository $transcripts,
-        private OpenAIClient $openai,
         private WorkerClient $worker
     ) {
     }
@@ -92,7 +91,13 @@ final class TranscriptionService
         }
 
         if (empty($plan['chunking'])) {
-            $response = $this->openai->transcribe($api_key, $model, $file_path, (string) get_post_mime_type($attachment_id));
+            $config = $this->settings->getProviderConfig('transcription');
+            $provider = ProviderRegistry::getTranscriptionProvider($config['provider']);
+            if ($provider === null) {
+                $this->fail($attachment_id, 'No transcription provider available for: ' . ($config['provider'] ?? 'none'), $job_id ?? null);
+                return;
+            }
+            $response = $provider->transcribe($file_path, (string) get_post_mime_type($attachment_id), $config);
             if (is_wp_error($response)) {
                 $this->handle_transcription_error($attachment_id, $response, $job_id);
                 return;
@@ -141,7 +146,14 @@ final class TranscriptionService
 
         $api_key = (string) $this->settings->get('api_key', '');
         $model = (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe');
-        $response = $this->openai->transcribe($api_key, $model, $chunk_path, 'audio/mpeg');
+
+        $config = $this->settings->getProviderConfig('transcription');
+        $provider = ProviderRegistry::getTranscriptionProvider($config['provider']);
+        if ($provider === null) {
+            $this->fail_chunk($attachment_id, $chunk_index, 'No transcription provider available.', $job_id);
+            return;
+        }
+        $response = $provider->transcribe($chunk_path, 'audio/wav', $config);
 
         if (is_wp_error($response)) {
             $this->fail_chunk($attachment_id, $chunk_index, $response->get_error_message(), $job_id);
@@ -281,11 +293,11 @@ final class TranscriptionService
     {
         $message = $error->get_error_message();
 
-        if (OpenAIClient::is_transient_error($error)) {
+        if (OpenAIProvider::is_transient_error($error)) {
             $job = $this->current_job($attachment_id, $job_id);
             $attempts = $job ? (int) ($job['attempt_count'] ?? 0) : 0;
 
-            if ($attempts < OpenAIClient::MAX_RETRIES) {
+            if ($attempts < OpenAIProvider::MAX_RETRIES) {
                 $new_attempts = $attempts + 1;
                 $job_id = $job ? (int) $job['id'] : $job_id;
                 $processing_mode = (string) ($job['processing_mode'] ?? 'local');
@@ -297,13 +309,13 @@ final class TranscriptionService
                 }
                 $this->logger->info('transcription_retry', 'Retrying transcription after transient error.', $attachment_id, [
                     'attempt' => $new_attempts,
-                    'max' => OpenAIClient::MAX_RETRIES,
+                    'max' => OpenAIProvider::MAX_RETRIES,
                     'error' => $message,
                 ]);
                 return;
             }
 
-            $message = 'Transcription failed after ' . OpenAIClient::MAX_RETRIES . ' attempts: ' . $message;
+            $message = 'Transcription failed after ' . OpenAIProvider::MAX_RETRIES . ' attempts: ' . $message;
         }
 
         $this->fail($attachment_id, $message, $job_id);

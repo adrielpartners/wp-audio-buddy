@@ -3,7 +3,72 @@
     <form method="post" action="options.php">
         <?php settings_fields($option_key); ?>
         <table class="form-table" role="presentation">
-            <tr><th colspan="2"><h2><?php esc_html_e('OpenAI', 'wp-audio-buddy'); ?></h2></th></tr>
+
+            <tr><th colspan="2"><h2><?php esc_html_e('AI Providers', 'wp-audio-buddy'); ?></h2></th></tr>
+
+            <!-- Transcription Provider -->
+            <tr>
+                <th><label for="wpab_transcription_provider"><?php esc_html_e('Transcription Provider', 'wp-audio-buddy'); ?></label></th>
+                <td>
+                    <select id="wpab_transcription_provider" class="wpab-provider-select" data-operation="transcription" name="wpab_settings[providers][transcription][provider]">
+                        <?php foreach ($transcription_providers as $slug => $label) : ?>
+                            <option value="<?php echo esc_attr($slug); ?>" <?php selected($slug, $transcription_config['provider']); ?>><?php echo esc_html($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="wpab-provider-panel" id="wpab-transcription-panel">
+                        <p>
+                            <label><?php esc_html_e('API Key', 'wp-audio-buddy'); ?><br>
+                            <input type="password" class="regular-text wpab-provider-api-key" data-operation="transcription" name="wpab_settings[providers][transcription][api_key]" value="" autocomplete="off" placeholder="<?php esc_attr_e('Saved - enter a new key to replace', 'wp-audio-buddy'); ?>"></label>
+                        </p>
+                        <p>
+                            <label><?php esc_html_e('Model', 'wp-audio-buddy'); ?><br>
+                            <select class="wpab-provider-model" data-operation="transcription" name="wpab_settings[providers][transcription][model]">
+                                <?php foreach ($transcription_models as $model_slug => $model_label) : ?>
+                                    <option value="<?php echo esc_attr($model_slug); ?>" <?php selected($model_slug, $transcription_config['model']); ?>><?php echo esc_html(is_string($model_label) ? $model_label : $model_slug); ?></option>
+                                <?php endforeach; ?>
+                            </select></label>
+                        </p>
+                        <p class="wpab-endpoint-field">
+                            <label><?php esc_html_e('API Base URL', 'wp-audio-buddy'); ?><br>
+                            <input type="url" class="regular-text wpab-provider-endpoint" data-operation="transcription" name="wpab_settings[providers][transcription][endpoint]" value="<?php echo esc_attr($transcription_config['endpoint'] ?? ''); ?>" placeholder="https://api.openai.com"></label>
+                        </p>
+                        <p class="description wpab-provider-docs"></p>
+                    </div>
+                </td>
+            </tr>
+
+            <!-- Excerpt Provider -->
+            <tr>
+                <th><label for="wpab_excerpt_provider"><?php esc_html_e('Excerpt Provider', 'wp-audio-buddy'); ?></label></th>
+                <td>
+                    <select id="wpab_excerpt_provider" class="wpab-provider-select" data-operation="excerpt" name="wpab_settings[providers][excerpt][provider]">
+                        <?php foreach ($excerpt_providers as $slug => $label) : ?>
+                            <option value="<?php echo esc_attr($slug); ?>" <?php selected($slug, $excerpt_config['provider']); ?>><?php echo esc_html($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="wpab-provider-panel" id="wpab-excerpt-panel">
+                        <p>
+                            <label><?php esc_html_e('API Key', 'wp-audio-buddy'); ?><br>
+                            <input type="password" class="regular-text wpab-provider-api-key" data-operation="excerpt" name="wpab_settings[providers][excerpt][api_key]" value="" autocomplete="off" placeholder="<?php esc_attr_e('Saved - enter a new key to replace', 'wp-audio-buddy'); ?>"></label>
+                        </p>
+                        <p>
+                            <label><?php esc_html_e('Model', 'wp-audio-buddy'); ?><br>
+                            <select class="wpab-provider-model" data-operation="excerpt" name="wpab_settings[providers][excerpt][model]">
+                                <?php foreach ($excerpt_models as $model_slug => $model_label) : ?>
+                                    <option value="<?php echo esc_attr($model_slug); ?>" <?php selected($model_slug, $excerpt_config['model']); ?>><?php echo esc_html(is_string($model_label) ? $model_label : $model_slug); ?></option>
+                                <?php endforeach; ?>
+                            </select></label>
+                        </p>
+                        <p class="wpab-endpoint-field">
+                            <label><?php esc_html_e('API Base URL', 'wp-audio-buddy'); ?><br>
+                            <input type="url" class="regular-text wpab-provider-endpoint" data-operation="excerpt" name="wpab_settings[providers][excerpt][endpoint]" value="<?php echo esc_attr($excerpt_config['endpoint'] ?? ''); ?>" placeholder="https://api.openai.com"></label>
+                        </p>
+                        <p class="description wpab-provider-docs"></p>
+                    </div>
+                </td>
+            </tr>
+
+            <tr><th colspan="2"><h2><?php esc_html_e('OpenAI (Legacy Fallback)', 'wp-audio-buddy'); ?></h2></th></tr>
             <tr>
                 <th><label for="wpab_api_key"><?php esc_html_e('OpenAI API Key', 'wp-audio-buddy'); ?></label></th>
                 <td>
@@ -153,6 +218,50 @@
         if(!type || !textarea) return;
         type.addEventListener('change', function(){
             textarea.value = templates[type.value] || templates.custom;
-        });
+});
     })();
-</script>
+
+    // Provider selector: update model dropdown, show endpoint field, show docs link
+    var providerData = <?php echo wp_json_encode($provider_info_js); ?>;
+    var providerSelectors = document.querySelectorAll('.wpab-provider-select');
+
+    function updateProviderPanel(select) {
+        var slug = select.value;
+        var op = select.getAttribute('data-operation');
+        var panel = document.getElementById('wpab-' + op + '-panel');
+        var modelSelect = panel.querySelector('.wpab-provider-model');
+        var endpointField = panel.querySelector('.wpab-endpoint-field');
+        var endpointInput = panel.querySelector('.wpab-provider-endpoint');
+        var docsEl = panel.querySelector('.wpab-provider-docs');
+        var info = providerData[slug];
+        if (!info) return;
+
+        var modelsKey = op === 'transcription' ? 'models_transcription' : 'models_text';
+        var models = info[modelsKey] || {};
+        modelSelect.innerHTML = '';
+        var firstVal = '';
+        for (var key in models) {
+            if (!models.hasOwnProperty(key)) continue;
+            if (!firstVal) firstVal = key;
+            modelSelect.innerHTML += '<option value="' + key + '">' + models[key] + '</option>';
+        }
+        if (modelSelect.options.length > 0) modelSelect.value = firstVal;
+
+        if (endpointField) {
+            endpointField.style.display = info.is_openai_compat ? '' : 'none';
+        }
+        if (endpointInput && info.endpoint) {
+            endpointInput.placeholder = info.endpoint;
+        }
+        if (docsEl) {
+            docsEl.innerHTML = info.docs_url
+                ? 'Need an API key? <a href="' + info.docs_url + '" target="_blank">' + info.label + ' API Keys</a>'
+                : '';
+        }
+    }
+
+    providerSelectors.forEach(function(sel) {
+        sel.addEventListener('change', function() { updateProviderPanel(this); });
+        updateProviderPanel(sel);
+    });
+})();

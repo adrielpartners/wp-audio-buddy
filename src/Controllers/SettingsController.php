@@ -19,13 +19,14 @@ final class SettingsController
         add_action('admin_init', [$this, 'register']);
     }
 
-    public static function defaults(): array
+public static function defaults(): array
     {
         return [
             'api_key' => '',
             'transcription_model' => 'gpt-4o-mini-transcribe',
             'excerpt_model' => 'gpt-5-mini',
-            'auto_transcribe_upload' => 0,
+            'providers' => [],
+            'processing_mode' => 'auto',
             'auto_generate_excerpt' => 0,
             'auto_format_transcript' => 1,
             'processing_mode' => 'auto',
@@ -75,6 +76,50 @@ final class SettingsController
         return $all[$key] ?? $fallback;
     }
 
+    /**
+     * Get the assembled provider configuration for a given operation.
+     *
+     * Falls back to legacy api_key/transcription_model/excerpt_model settings
+     * if the new provider config is empty (backward compatibility).
+     */
+    public function getProviderConfig(string $operation): array
+    {
+        $all = $this->get_all();
+        $providers = $all['providers'] ?? [];
+        $config = $providers[$operation] ?? [];
+        $provider_slug = $config['provider'] ?? '';
+
+        // Fall back to legacy OpenAI settings if provider config is empty.
+        if (empty($config['api_key']) && ! empty($all['api_key'])) {
+            $provider_slug = 'openai';
+            $config = [
+                'provider' => 'openai',
+                'api_key' => $all['api_key'],
+                'model' => $operation === 'transcription'
+                    ? ($all['transcription_model'] ?? 'gpt-4o-mini-transcribe')
+                    : ($all['excerpt_model'] ?? 'gpt-5-mini'),
+                'endpoint' => 'https://api.openai.com',
+            ];
+        }
+
+        // Set default endpoint if not already provided.
+        if (empty($config['endpoint'])) {
+            $config['endpoint'] = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getEndpoint($provider_slug);
+        }
+
+        // Set default model if not provided.
+        if (empty($config['model']) && $provider_slug) {
+            $info = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getProviderInfo($provider_slug);
+            if ($info) {
+                $key = $operation === 'transcription' ? 'default_model_transcription' : 'default_model_text';
+                $config['model'] = $info[$key] ?? '';
+            }
+        }
+
+        $config['provider'] = $provider_slug;
+        return $config;
+    }
+
     public function sanitize(array $input): array
     {
         $current = $this->get_all();
@@ -115,6 +160,21 @@ final class SettingsController
 
         $current['delete_data_on_uninstall'] = ! empty($input['delete_data_on_uninstall']) ? 1 : 0;
 
+        // Provider settings.
+        $providers = $input['providers'] ?? [];
+        if (is_array($providers)) {
+            foreach (['transcription', 'excerpt'] as $op) {
+                $p = $providers[$op] ?? [];
+                $slug = sanitize_key($p['provider'] ?? '');
+                $current['providers'][$op] = [
+                    'provider' => $slug,
+                    'api_key' => sanitize_text_field($p['api_key'] ?? ''),
+                    'model' => sanitize_text_field($p['model'] ?? ''),
+                    'endpoint' => ! empty($p['endpoint']) ? esc_url_raw($p['endpoint']) : '',
+                ];
+            }
+        }
+
         return $current;
     }
 
@@ -136,6 +196,33 @@ final class SettingsController
         $checkbox_auto_excerpt = $this->checkbox_row('auto_generate_excerpt', 'Auto-generate excerpt after transcription', $settings);
         $checkbox_copy_transcript = $this->checkbox_row('enable_copy_transcript', 'Enable "Copy Audio Transcription" button in post editors', $settings);
         $checkbox_copy_excerpt = $this->checkbox_row('enable_copy_excerpt', 'Enable "Copy Audio Excerpt" button in post editors', $settings);
+
+        // Provider data for the UI.
+        $transcription_providers = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getAvailableProviders('transcription');
+        $excerpt_providers = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getAvailableProviders('text');
+
+        $transcription_config = $this->getProviderConfig('transcription');
+        $excerpt_config = $this->getProviderConfig('excerpt');
+
+        $transcription_models = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getModels($transcription_config['provider'], 'transcription');
+        $excerpt_models = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getModels($excerpt_config['provider'], 'text');
+
+        $provider_info_js = [];
+        foreach (['openai', 'groq', 'openrouter', 'anthropic', 'deepseek', 'gemini', 'deepgram'] as $slug) {
+            $info = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getProviderInfo($slug);
+            if ($info) {
+                $provider_info_js[$slug] = [
+                    'label' => $info['label'],
+                    'endpoint' => $info['endpoint'] ?? '',
+                    'docs_url' => $info['docs_url'] ?? '',
+                    'models_transcription' => $info['models_transcription'] ?? [],
+                    'models_text' => $info['models_text'] ?? [],
+                    'supports_transcription' => $info['transcription'] !== null,
+                    'supports_text' => $info['text'] !== null,
+                    'is_openai_compat' => \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::isOpenAICompatible($slug),
+                ];
+            }
+        }
 
         $option_key = self::OPTION_KEY;
         include WPAB_PATH . 'admin/views/settings-page.php';

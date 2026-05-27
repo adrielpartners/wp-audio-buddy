@@ -16,7 +16,6 @@ use AdrielPartners\WpAudioBuddy\Data\JobRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Schema;
 use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
-use AdrielPartners\WpAudioBuddy\Integrations\OpenAIClient;
 use AdrielPartners\WpAudioBuddy\Integrations\WorkerClient;
 use AdrielPartners\WpAudioBuddy\Services\ExcerptService;
 use AdrielPartners\WpAudioBuddy\Services\QueueService;
@@ -39,7 +38,6 @@ final class Plugin
     private ?TranscriptionService $transcription_service = null;
     private ?JobRepository $jobs = null;
     private ?TranscriptRepository $transcripts = null;
-    private ?OpenAIClient $openai = null;
     private ?WorkerClient $worker = null;
     private ?GeneratedOutputRepository $outputs = null;
 
@@ -88,11 +86,10 @@ final class Plugin
         $this->chunker = new AudioChunker();
         $this->jobs = new JobRepository();
         $this->transcripts = new TranscriptRepository();
-        $this->openai = new OpenAIClient();
         $this->worker = new WorkerClient($this->settings, $this->logger);
         $this->outputs = new GeneratedOutputRepository();
         $this->queue = new QueueService($this->settings, $this->logger, $this->jobs);
-        $this->excerpt_service = new ExcerptService($this->settings, $this->logger, $this->openai, $this->outputs, $this->jobs);
+        $this->excerpt_service = new ExcerptService($this->settings, $this->logger, $this->outputs, $this->jobs);
         $this->transcription_service = new TranscriptionService(
             $this->settings,
             $this->queue,
@@ -101,7 +98,6 @@ final class Plugin
             $this->chunker,
             $this->jobs,
             $this->transcripts,
-            $this->openai,
             $this->worker
         );
 

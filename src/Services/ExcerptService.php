@@ -9,8 +9,8 @@ use AdrielPartners\WpAudioBuddy\Data\GeneratedOutputRepository;
 use AdrielPartners\WpAudioBuddy\Data\JobRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Meta;
-use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
-use AdrielPartners\WpAudioBuddy\Integrations\OpenAIClient;
+use AdrielPartners\WpAudioBuddy\Integrations\OpenAIProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry;
 
 if (! defined('ABSPATH')) {
     exit;
@@ -18,10 +18,9 @@ if (! defined('ABSPATH')) {
 
 final class ExcerptService
 {
-    public function __construct(
+public function __construct(
         private SettingsController $settings,
         private LoggerRepository $logger,
-        private OpenAIClient $openai,
         private GeneratedOutputRepository $outputs,
         private JobRepository $jobs
     ) {
@@ -93,14 +92,14 @@ final class ExcerptService
     {
         $message = $error->get_error_message();
 
-        if (OpenAIClient::is_transient_error($error)) {
+        if (OpenAIProvider::is_transient_error($error)) {
             $job = $this->current_job($attachment_id, $job_id);
             $attempts = 0;
             if ($job !== null && ($job['operation'] ?? '') === 'excerpt') {
                 $attempts = (int) ($job['attempt_count'] ?? 0);
             }
 
-            if ($attempts < OpenAIClient::MAX_RETRIES) {
+            if ($attempts < OpenAIProvider::MAX_RETRIES) {
                 if ($job !== null) {
                     $job_id = (int) $job['id'];
                     $this->jobs->update((int) $job['id'], [
@@ -111,7 +110,7 @@ final class ExcerptService
                 update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'queued');
                 $this->logger->info('excerpt_retry', 'Retrying excerpt after transient error.', $attachment_id, [
                     'attempt' => $attempts + 1,
-                    'max' => OpenAIClient::MAX_RETRIES,
+                    'max' => OpenAIProvider::MAX_RETRIES,
                     'error' => $message,
                 ]);
                 if (function_exists('as_enqueue_async_action')) {
@@ -122,7 +121,7 @@ final class ExcerptService
                 return;
             }
 
-            $message = 'Excerpt failed after ' . OpenAIClient::MAX_RETRIES . ' attempts: ' . $message;
+            $message = 'Excerpt failed after ' . OpenAIProvider::MAX_RETRIES . ' attempts: ' . $message;
         }
 
         update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'error');
@@ -182,7 +181,7 @@ final class ExcerptService
     {
         $api_key = (string) $this->settings->get('api_key', '');
         if ('' === $api_key) {
-            return new \WP_Error(OpenAIClient::ERROR_OPENAI_AUTH, 'OpenAI API key is missing.');
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_AUTH, 'OpenAI API key is missing.');
         }
 
         $model = (string) $this->settings->get('excerpt_model', 'gpt-5-mini');
