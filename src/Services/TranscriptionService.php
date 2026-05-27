@@ -64,24 +64,25 @@ final class TranscriptionService
 
     public function handle(int $attachment_id, ?int $job_id = null): void
     {
-        // Increase time limit for long-running transcription jobs.
-        if (function_exists('set_time_limit')) {
-            set_time_limit(600);
-        }
-        if (function_exists('as_set_time_limit')) {
-            as_set_time_limit(600);
-        }
+        try {
+            // Increase time limit for long-running transcription jobs.
+            if (function_exists('set_time_limit')) {
+                set_time_limit(600);
+            }
+            if (function_exists('as_set_time_limit')) {
+                as_set_time_limit(600);
+            }
 
-        if (! Meta::is_audio_attachment($attachment_id)) {
-            return;
-        }
+            if (! Meta::is_audio_attachment($attachment_id)) {
+                return;
+            }
 
-        Meta::clear_chunk_meta($attachment_id);
-        update_post_meta($attachment_id, Meta::TRANSCRIPT_STATUS, 'running');
-        delete_post_meta($attachment_id, Meta::TRANSCRIPT_ERROR);
-        $job = $this->current_job($attachment_id, $job_id);
-        $job_id = $job ? (int) $job['id'] : $job_id;
-        $this->update_job_status($attachment_id, $job_id, 'running', ['started_at' => current_time('mysql')]);
+            Meta::clear_chunk_meta($attachment_id);
+            update_post_meta($attachment_id, Meta::TRANSCRIPT_STATUS, 'running');
+            delete_post_meta($attachment_id, Meta::TRANSCRIPT_ERROR);
+            $job = $this->current_job($attachment_id, $job_id);
+            $job_id = $job ? (int) $job['id'] : $job_id;
+            $this->update_job_status($attachment_id, $job_id, 'running', ['started_at' => current_time('mysql')]);
 
         $config = $this->settings->getProviderConfig('transcription');
         $file_path = get_attached_file($attachment_id);
@@ -128,6 +129,11 @@ final class TranscriptionService
 
         $this->queue->enqueue_transcription_finalizer($attachment_id, $job_id);
         $this->logger->info('transcription_chunk_prepare', 'Chunk plan prepared and jobs enqueued.', $attachment_id, ['total' => (int) $plan['total']]);
+        } catch (\Throwable $e) {
+            $message = 'Transcription error: ' . $e->getMessage();
+            $this->logger->error('transcription_exception', $message, $attachment_id, ['file' => $e->getFile(), 'line' => $e->getLine()]);
+            $this->fail($attachment_id, $message, $job_id);
+        }
     }
 
     public function handle_chunk(int $attachment_id, int $chunk_index, ?int $job_id = null): void
