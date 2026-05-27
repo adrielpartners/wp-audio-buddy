@@ -26,11 +26,13 @@
                     $is_compat = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::isOpenAICompatible($slug);
                     $endpoint = $info['endpoint'] ?? 'https://api.openai.com';
                     $docs_url = $info['docs_url'] ?? '';
+                    $has_key = ! empty($settings['providers']['transcription']['keys'][$slug]);
+                    $key_placeholder = $has_key ? __('Key saved — enter new to replace', 'wp-audio-buddy') : __('Enter API key', 'wp-audio-buddy');
                 ?>
                 <div class="wpab-provider-settings wpab-provider-<?php echo esc_attr($slug); ?>-transcription" <?php echo $is_active ? '' : 'style="display:none"'; ?>>
                     <p>
                         <label><?php echo esc_html($label); ?> — <?php esc_html_e('API Key', 'wp-audio-buddy'); ?>:
-                            <input type="password" class="regular-text" name="wpab_settings[providers][transcription][keys][<?php echo esc_attr($slug); ?>]" value="" autocomplete="off" placeholder="<?php esc_attr_e('Saved - enter a new key to replace', 'wp-audio-buddy'); ?>">
+                            <input type="password" class="regular-text" name="wpab_settings[providers][transcription][keys][<?php echo esc_attr($slug); ?>]" value="" autocomplete="off" placeholder="<?php echo esc_attr($key_placeholder); ?>">
                         </label>
                         <?php if ($docs_url) : ?>
                             <a href="<?php echo esc_url($docs_url); ?>" target="_blank" class="description" style="margin-left:8px"><?php esc_html_e('Get API key', 'wp-audio-buddy'); ?></a>
@@ -75,11 +77,13 @@
                     $is_compat = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::isOpenAICompatible($slug);
                     $endpoint = $info['endpoint'] ?? 'https://api.openai.com';
                     $docs_url = $info['docs_url'] ?? '';
+                    $has_key = ! empty($settings['providers']['excerpt']['keys'][$slug]);
+                    $key_placeholder = $has_key ? __('Key saved — enter new to replace', 'wp-audio-buddy') : __('Enter API key', 'wp-audio-buddy');
                 ?>
                 <div class="wpab-provider-settings wpab-provider-<?php echo esc_attr($slug); ?>-excerpt" <?php echo $is_active ? '' : 'style="display:none"'; ?>>
                     <p>
                         <label><?php echo esc_html($label); ?> — <?php esc_html_e('API Key', 'wp-audio-buddy'); ?>:
-                            <input type="password" class="regular-text" name="wpab_settings[providers][excerpt][keys][<?php echo esc_attr($slug); ?>]" value="" autocomplete="off" placeholder="<?php esc_attr_e('Saved - enter a new key to replace', 'wp-audio-buddy'); ?>">
+                            <input type="password" class="regular-text" name="wpab_settings[providers][excerpt][keys][<?php echo esc_attr($slug); ?>]" value="" autocomplete="off" placeholder="<?php echo esc_attr($key_placeholder); ?>">
                         </label>
                         <?php if ($docs_url) : ?>
                             <a href="<?php echo esc_url($docs_url); ?>" target="_blank" class="description" style="margin-left:8px"><?php esc_html_e('Get API key', 'wp-audio-buddy'); ?></a>
@@ -107,6 +111,8 @@
             </div>
 
             </td></tr>
+
+            <tr><td colspan="2" style="padding-top:0"><?php submit_button(); ?></td></tr>
 
             <tr><th colspan="2"><h2><?php esc_html_e('Processing Mode', 'wp-audio-buddy'); ?></h2></th></tr>
             <tr>
@@ -249,11 +255,16 @@ function wpabToggleProvider(select, operation) {
     }
 }
 
-// Run on page load
+// Run on page load: show selected provider rows without hiding other sections
 (function(){
     var selects = document.querySelectorAll('.wpab-provider-select');
     for (var i = 0; i < selects.length; i++) {
-        wpabToggleProvider(selects[i], selects[i].getAttribute('data-operation'));
+        var slug = selects[i].value;
+        var op = selects[i].getAttribute('data-operation');
+        var match = document.querySelectorAll('.wpab-provider-' + slug + '-' + op);
+        for (var j = 0; j < match.length; j++) {
+            match[j].style.display = '';
+        }
     }
     // Keep existing excerpt template toggle
     var templates = <?php echo wp_json_encode($templates); ?>;
