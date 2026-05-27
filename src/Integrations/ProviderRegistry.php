@@ -11,6 +11,8 @@ use AdrielPartners\WpAudioBuddy\Integrations\Providers\GeminiProvider;
 use AdrielPartners\WpAudioBuddy\Integrations\Providers\GroqProvider;
 use AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenAIProvider;
 use AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenRouterProvider;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\TextGenerationProviderInterface;
+use AdrielPartners\WpAudioBuddy\Integrations\Providers\TranscriptionProviderInterface;
 
 if (! defined('ABSPATH')) {
     exit;
