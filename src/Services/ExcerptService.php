@@ -28,6 +28,7 @@ public function __construct(
 
     public function handle(int $attachment_id, ?int $job_id = null): void
     {
+        try {
         $config = $this->settings->getProviderConfig('excerpt');
         $transcript_repo = new TranscriptRepository();
         $latest_transcript = $transcript_repo->get_latest_for_attachment($attachment_id);
@@ -84,6 +85,11 @@ public function __construct(
 
         $this->complete_job($attachment_id, $job_id);
         $this->logger->info('excerpt', 'Excerpt generated successfully.', $attachment_id, ['prompt_type' => $prompt_type]);
+        } catch (\Throwable $e) {
+            $message = 'Excerpt error: ' . $e->getMessage();
+            $this->logger->error('excerpt_exception', $message, $attachment_id, ['file' => $e->getFile(), 'line' => $e->getLine()]);
+            $this->fail_job($attachment_id, $job_id, $message);
+        }
     }
 
     /**
