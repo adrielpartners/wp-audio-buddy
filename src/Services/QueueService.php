@@ -8,6 +8,8 @@ use AdrielPartners\WpAudioBuddy\Controllers\SettingsController;
 use AdrielPartners\WpAudioBuddy\Data\JobRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Meta;
+use AdrielPartners\WpAudioBuddy\Data\GeneratedOutputRepository;
+use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
 
 if (! defined('ABSPATH')) {
     exit;
@@ -25,11 +27,11 @@ final class QueueService
 
     public function register_handlers(TranscriptionService $transcription, ExcerptService $excerpt): void
     {
-        add_action('wpab_transcribe_attachment', [$transcription, 'handle'], 10, 1);
-        add_action('wpab_dispatch_worker_transcription', [$transcription, 'dispatch_to_worker'], 10, 1);
-        add_action('wpab_transcribe_chunk', [$transcription, 'handle_chunk'], 10, 2);
-        add_action('wpab_finalize_transcription', [$transcription, 'finalize_chunked_transcript'], 10, 1);
-        add_action('wpab_generate_excerpt', [$excerpt, 'handle'], 10, 1);
+        add_action('wpab_transcribe_attachment', [$transcription, 'handle'], 10, 2);
+        add_action('wpab_dispatch_worker_transcription', [$transcription, 'dispatch_to_worker'], 10, 2);
+        add_action('wpab_transcribe_chunk', [$transcription, 'handle_chunk'], 10, 3);
+        add_action('wpab_finalize_transcription', [$transcription, 'finalize_chunked_transcript'], 10, 2);
+        add_action('wpab_generate_excerpt', [$excerpt, 'handle'], 10, 2);
     }
 
     public function enqueue_transcription(int $attachment_id, string $source = 'manual'): void
@@ -45,9 +47,6 @@ final class QueueService
             return;
         }
 
-        $hook = $decision ? 'wpab_dispatch_worker_transcription' : 'wpab_transcribe_attachment';
-        $this->enqueue($hook, [$attachment_id]);
-
         $job_id = $this->jobs->insert([
             'attachment_id' => $attachment_id,
             'operation' => 'transcribe',
@@ -56,33 +55,42 @@ final class QueueService
             'source' => $source,
         ]);
 
+        $this->enqueue_existing_transcription($attachment_id, $job_id, $decision ? 'worker' : 'local');
+
         $this->logger->info('enqueue_transcription', 'Queued transcription job.', $attachment_id, [
             'worker_mode' => $decision,
             'job_id' => $job_id,
         ]);
     }
 
-    public function enqueue_transcription_chunk(int $attachment_id, int $chunk_index): void
+    public function enqueue_existing_transcription(int $attachment_id, int $job_id, string $processing_mode): void
     {
-        $this->enqueue('wpab_transcribe_chunk', [$attachment_id, $chunk_index]);
+        $hook = 'worker' === $processing_mode ? 'wpab_dispatch_worker_transcription' : 'wpab_transcribe_attachment';
+        $this->enqueue($hook, [$attachment_id, $job_id]);
     }
 
-    public function enqueue_transcription_finalizer(int $attachment_id): void
+    public function enqueue_transcription_chunk(int $attachment_id, int $chunk_index, ?int $job_id = null): void
     {
-        $this->enqueue('wpab_finalize_transcription', [$attachment_id]);
+        $this->enqueue('wpab_transcribe_chunk', [$attachment_id, $chunk_index, $job_id]);
+    }
+
+    public function enqueue_transcription_finalizer(int $attachment_id, ?int $job_id = null): void
+    {
+        $this->enqueue('wpab_finalize_transcription', [$attachment_id, $job_id]);
     }
 
     public function enqueue_excerpt(int $attachment_id, string $source = 'manual'): void
     {
-        if (! Meta::has_transcript($attachment_id) || 'done' === Meta::excerpt_status($attachment_id)) {
-            $this->logger->info('enqueue_excerpt', 'Skipped excerpt queue.', $attachment_id, ['has_transcript' => Meta::has_transcript($attachment_id), 'status' => Meta::excerpt_status($attachment_id)]);
+        $has_transcript = $this->has_transcript($attachment_id);
+        $has_excerpt = $this->has_excerpt($attachment_id);
+        if (! $has_transcript || $has_excerpt) {
+            $this->logger->info('enqueue_excerpt', 'Skipped excerpt queue.', $attachment_id, ['has_transcript' => $has_transcript, 'status' => Meta::excerpt_status($attachment_id)]);
             return;
         }
 
         update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'queued');
-        $this->enqueue('wpab_generate_excerpt', [$attachment_id]);
 
-        $this->jobs->insert([
+        $job_id = $this->jobs->insert([
             'attachment_id' => $attachment_id,
             'operation' => 'excerpt',
             'processing_mode' => 'local',
@@ -90,7 +98,14 @@ final class QueueService
             'source' => $source,
         ]);
 
-        $this->logger->info('enqueue_excerpt', 'Queued excerpt job.', $attachment_id);
+        $this->enqueue_existing_excerpt($attachment_id, $job_id);
+
+        $this->logger->info('enqueue_excerpt', 'Queued excerpt job.', $attachment_id, ['job_id' => $job_id]);
+    }
+
+    public function enqueue_existing_excerpt(int $attachment_id, int $job_id): void
+    {
+        $this->enqueue('wpab_generate_excerpt', [$attachment_id, $job_id]);
     }
 
     private function should_use_worker(int $attachment_id): bool|\WP_Error
@@ -102,6 +117,10 @@ final class QueueService
             $file_path = (string) get_attached_file($attachment_id);
             if ('' === $file_path || ! is_readable($file_path)) {
                 return new \WP_Error('wpab_audio_file_missing', 'Audio file is missing or unreadable for local transcription.');
+            }
+            $size = filesize($file_path);
+            if (false !== $size && (int) $size > (int) $this->settings->get('worker_file_size_threshold', 20971520) && ! $this->local_chunking_is_available()) {
+                return new \WP_Error('wpab_local_file_too_large', 'This audio file is too large for local WordPress processing on this server. Configure the worker or install FFmpeg for local chunking.');
             }
             return false;
         }
@@ -118,6 +137,10 @@ final class QueueService
             $file_path = (string) get_attached_file($attachment_id);
             if ('' === $file_path || ! is_readable($file_path)) {
                 return new \WP_Error('wpab_audio_file_missing', 'Audio file is missing or unreadable for direct transcription.');
+            }
+            $size = filesize($file_path);
+            if (false !== $size && (int) $size > (int) $this->settings->get('worker_file_size_threshold', 20971520) && ! $this->local_chunking_is_available()) {
+                return new \WP_Error('wpab_worker_recommended', 'This audio file is larger than the local processing threshold and no worker is configured. Configure the worker or use a smaller file.');
             }
             return false;
         }
@@ -150,6 +173,43 @@ final class QueueService
     {
         return '' !== trim((string) $this->settings->get('worker_url', ''))
             && '' !== trim((string) $this->settings->get('worker_shared_secret', ''));
+    }
+
+    private function local_chunking_is_available(): bool
+    {
+        if (! function_exists('exec')) {
+            return false;
+        }
+
+        $output = [];
+        $return = 1;
+        @exec('command -v ffmpeg 2>/dev/null', $output, $return);
+
+        return 0 === $return && ! empty($output);
+    }
+
+    private function has_transcript(int $attachment_id): bool
+    {
+        if (Meta::has_transcript($attachment_id)) {
+            return true;
+        }
+
+        $transcripts = new TranscriptRepository();
+        $row = $transcripts->get_latest_for_attachment($attachment_id);
+
+        return null !== $row && '' !== trim((string) ($row['transcript_text'] ?? ''));
+    }
+
+    private function has_excerpt(int $attachment_id): bool
+    {
+        if ('done' === Meta::excerpt_status($attachment_id) && '' !== trim((string) get_post_meta($attachment_id, Meta::EXCERPT, true))) {
+            return true;
+        }
+
+        $outputs = new GeneratedOutputRepository();
+        $row = $outputs->get_latest_for_attachment($attachment_id, 'excerpt');
+
+        return null !== $row && '' !== trim((string) ($row['output_text'] ?? ''));
     }
 
     private function enqueue(string $hook, array $args): void

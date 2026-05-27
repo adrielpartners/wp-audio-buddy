@@ -9,6 +9,7 @@ use AdrielPartners\WpAudioBuddy\Data\GeneratedOutputRepository;
 use AdrielPartners\WpAudioBuddy\Data\JobRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Meta;
+use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
 use AdrielPartners\WpAudioBuddy\Integrations\OpenAIClient;
 
 if (! defined('ABSPATH')) {
@@ -26,20 +27,27 @@ final class ExcerptService
     ) {
     }
 
-    public function handle(int $attachment_id): void
+    public function handle(int $attachment_id, ?int $job_id = null): void
     {
-        $transcript = (string) get_post_meta($attachment_id, Meta::TRANSCRIPT, true);
+        $transcript_repo = new TranscriptRepository();
+        $latest_transcript = $transcript_repo->get_latest_for_attachment($attachment_id);
+        $transcript = null !== $latest_transcript
+            ? (string) ($latest_transcript['transcript_text'] ?? '')
+            : (string) get_post_meta($attachment_id, Meta::TRANSCRIPT, true);
         if ('' === trim($transcript)) {
             $this->logger->info('excerpt', 'Skipped excerpt generation: transcript missing.', $attachment_id);
+            $this->fail_job($attachment_id, $job_id, 'Transcript is missing.');
             return;
         }
 
         if ('done' === Meta::excerpt_status($attachment_id) && '' !== trim((string) get_post_meta($attachment_id, Meta::EXCERPT, true))) {
             $this->logger->info('excerpt', 'Skipped excerpt generation: already complete.', $attachment_id);
+            $this->complete_job($attachment_id, $job_id);
             return;
         }
 
         update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'running');
+        $this->update_job_status($attachment_id, $job_id, 'running', ['started_at' => current_time('mysql')]);
 
         $prompt_type = (string) $this->settings->get('excerpt_type', 'informative');
         $max_words = (int) $this->settings->get('excerpt_max_words', 100);
@@ -50,7 +58,7 @@ final class ExcerptService
         $response = $this->responses_api($prompt, $max_words, $temperature);
 
         if (is_wp_error($response)) {
-            $this->handle_excerpt_error($attachment_id, $response, $prompt_type, $template);
+            $this->handle_excerpt_error($attachment_id, $response, $job_id);
             return;
         }
 
@@ -64,6 +72,7 @@ final class ExcerptService
 
         $this->outputs->insert([
             'attachment_id' => $attachment_id,
+            'job_id' => $job_id,
             'output_type' => 'excerpt',
             'prompt_type' => $prompt_type,
             'output_text' => $response,
@@ -73,18 +82,19 @@ final class ExcerptService
             ]),
         ]);
 
+        $this->complete_job($attachment_id, $job_id);
         $this->logger->info('excerpt', 'Excerpt generated successfully.', $attachment_id, ['prompt_type' => $prompt_type]);
     }
 
     /**
      * Handle an excerpt API error with bounded retry for transient failures.
      */
-    private function handle_excerpt_error(int $attachment_id, \WP_Error $error, string $prompt_type, string $template): void
+    private function handle_excerpt_error(int $attachment_id, \WP_Error $error, ?int $job_id = null): void
     {
         $message = $error->get_error_message();
 
         if (OpenAIClient::is_transient_error($error)) {
-            $job = $this->jobs->get_latest_for_attachment($attachment_id);
+            $job = $this->current_job($attachment_id, $job_id);
             $attempts = 0;
             if ($job !== null && ($job['operation'] ?? '') === 'excerpt') {
                 $attempts = (int) ($job['attempt_count'] ?? 0);
@@ -92,6 +102,7 @@ final class ExcerptService
 
             if ($attempts < OpenAIClient::MAX_RETRIES) {
                 if ($job !== null) {
+                    $job_id = (int) $job['id'];
                     $this->jobs->update((int) $job['id'], [
                         'attempt_count' => $attempts + 1,
                         'status' => 'queued',
@@ -104,7 +115,9 @@ final class ExcerptService
                     'error' => $message,
                 ]);
                 if (function_exists('as_enqueue_async_action')) {
-                    as_enqueue_async_action('wpab_generate_excerpt', [$attachment_id], 'wp-audio-buddy');
+                    as_enqueue_async_action('wpab_generate_excerpt', [$attachment_id, $job_id], 'wp-audio-buddy');
+                } elseif (! wp_next_scheduled('wpab_generate_excerpt', [$attachment_id, $job_id])) {
+                    wp_schedule_single_event(time() + 10, 'wpab_generate_excerpt', [$attachment_id, $job_id]);
                 }
                 return;
             }
@@ -114,7 +127,44 @@ final class ExcerptService
 
         update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'error');
         update_post_meta($attachment_id, Meta::EXCERPT_ERROR, $message);
+        $this->fail_job($attachment_id, $job_id, $message);
         $this->logger->error('excerpt', $message, $attachment_id);
+    }
+
+    private function current_job(int $attachment_id, ?int $job_id = null): ?array
+    {
+        if (null !== $job_id && $job_id > 0) {
+            $job = $this->jobs->get_by_id($job_id);
+            if (null !== $job && (int) ($job['attachment_id'] ?? 0) === $attachment_id && 'excerpt' === ($job['operation'] ?? '')) {
+                return $job;
+            }
+        }
+
+        return $this->jobs->get_latest_for_attachment_operation($attachment_id, 'excerpt');
+    }
+
+    private function update_job_status(int $attachment_id, ?int $job_id, string $status, array $extra = []): void
+    {
+        $job = $this->current_job($attachment_id, $job_id);
+        if (null === $job) {
+            return;
+        }
+
+        $this->jobs->update((int) $job['id'], array_merge(['status' => $status], $extra));
+    }
+
+    private function complete_job(int $attachment_id, ?int $job_id): void
+    {
+        $this->update_job_status($attachment_id, $job_id, 'completed', ['completed_at' => current_time('mysql')]);
+    }
+
+    private function fail_job(int $attachment_id, ?int $job_id, string $message): void
+    {
+        $this->update_job_status($attachment_id, $job_id, 'failed', [
+            'failed_at' => current_time('mysql'),
+            'error_code' => 'excerpt_failed',
+            'error_message' => $message,
+        ]);
     }
 
     public function format_transcript(string $transcript): string
@@ -128,7 +178,7 @@ final class ExcerptService
         return is_wp_error($response) ? $transcript : $response;
     }
 
-private function responses_api(string $input, int $max_words, mixed $temperature = null): string|\WP_Error
+    private function responses_api(string $input, int $max_words, mixed $temperature = null): string|\WP_Error
     {
         $api_key = (string) $this->settings->get('api_key', '');
         if ('' === $api_key) {

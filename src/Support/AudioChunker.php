@@ -97,6 +97,10 @@ final class AudioChunker
 
     private function binary_exists(string $binary): bool
     {
+        if (! function_exists('exec')) {
+            return false;
+        }
+
         $output = [];
         $return = 1;
         @exec('command -v ' . escapeshellarg($binary) . ' 2>/dev/null', $output, $return);
@@ -105,7 +109,7 @@ final class AudioChunker
 
     private function probe_duration(string $source_path): float
     {
-        if (! $this->has_ffprobe()) {
+        if (! function_exists('exec') || ! $this->has_ffprobe()) {
             return 0.0;
         }
 
@@ -166,6 +170,10 @@ final class AudioChunker
 
     private function chunk_with_segmenter(string $source_path, string $tmp_dir): array|\WP_Error
     {
+        if (! function_exists('exec')) {
+            return new \WP_Error('wpab_exec_missing', 'Server command execution is not available for audio chunking.');
+        }
+
         $pattern = trailingslashit($tmp_dir) . 'chunk-%04d.mp3';
         $cmd = 'ffmpeg -hide_banner -loglevel error -y -i ' . escapeshellarg($source_path) .
             ' -ac 1 -ar 16000 -b:a 48k -f segment -segment_time ' . (int) self::CHUNK_SECONDS . ' ' . escapeshellarg($pattern) . ' 2>&1';
@@ -202,6 +210,10 @@ final class AudioChunker
 
     private function encode_chunk(string $source_path, string $chunk_path, float $start, float $length, int $bitrate_kbps): bool|\WP_Error
     {
+        if (! function_exists('exec')) {
+            return new \WP_Error('wpab_exec_missing', 'Server command execution is not available for audio chunking.');
+        }
+
         $cmd = sprintf(
             'ffmpeg -hide_banner -loglevel error -y -ss %s -t %s -i %s -ac 1 -ar 16000 -b:a %sk %s 2>&1',
             escapeshellarg((string) $start),

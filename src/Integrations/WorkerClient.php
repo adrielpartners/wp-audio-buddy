@@ -45,9 +45,9 @@ final class WorkerClient
             return new \WP_Error('WORKER_NOT_CONFIGURED', 'Worker mode is enabled but worker URL or shared secret is missing.');
         }
 
-        $audio_url = wp_get_attachment_url($attachment_id);
-        if (! $audio_url) {
-            return new \WP_Error('AUDIO_NOT_FOUND', 'Attachment URL is unavailable for worker dispatch.');
+        $audio_url = $this->signed_audio_url($attachment_id, $job_uuid, $secret);
+        if (is_wp_error($audio_url)) {
+            return $audio_url;
         }
 
         $timestamp = time();
@@ -57,7 +57,7 @@ final class WorkerClient
             'attachment_id' => $attachment_id,
             'operation' => 'transcribe',
             'audio_url' => $audio_url,
-            'callback_url' => rest_url('wp-audio-buddy/v1/transcription-callback'),
+            'callback_url' => rest_url('wpab/v1/worker-callback'),
             'model' => (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe'),
             'chunk_seconds' => max(60, absint($this->settings->get('worker_chunk_seconds', 660))),
             'timestamp' => $timestamp,
@@ -72,7 +72,8 @@ final class WorkerClient
             return new \WP_Error('WORKER_PAYLOAD_ERROR', 'Failed to encode worker dispatch payload.');
         }
 
-        $signature = SignatureService::sign($raw, $secret);
+        $header_site_id = $site_id ?: get_site_url();
+        $signature = SignatureService::sign_request($raw, $secret, (string) $timestamp, $header_site_id);
 
         $response = wp_remote_post($worker_url . 'v1/jobs/transcribe', [
             'timeout' => 45,
@@ -80,7 +81,7 @@ final class WorkerClient
                 'Content-Type' => 'application/json',
                 'X-WPAB-Signature' => $signature,
                 'X-WPAB-Timestamp' => (string) $timestamp,
-                'X-WPAB-Site-ID' => $site_id ?: get_site_url(),
+                'X-WPAB-Site-ID' => $header_site_id,
             ],
             'body' => $raw,
         ]);
@@ -105,5 +106,24 @@ final class WorkerClient
         ]);
 
         return true;
+    }
+
+    private function signed_audio_url(int $attachment_id, string $job_uuid, string $secret): string|\WP_Error
+    {
+        if ('' === $job_uuid) {
+            return new \WP_Error('WORKER_JOB_UUID_MISSING', 'Cannot create worker audio URL without a local job UUID.');
+        }
+
+        $expires = time() + HOUR_IN_SECONDS;
+        $signature = SignatureService::sign_download_url($attachment_id, $job_uuid, $expires, $secret);
+
+        return add_query_arg(
+            [
+                'job_uuid' => $job_uuid,
+                'expires' => $expires,
+                'signature' => $signature,
+            ],
+            rest_url('wpab/v1/audio-download/' . $attachment_id)
+        );
     }
 }

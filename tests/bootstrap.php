@@ -15,12 +15,6 @@ if (file_exists($autoload)) {
     require_once $autoload;
 }
 
-// Load global-scope template functions.
-$templates = dirname(__DIR__) . '/src/Support/template-functions.php';
-if (file_exists($templates)) {
-    require_once $templates;
-}
-
 // Define ABSPATH if not in WordPress context (unit tests only).
 if (! defined('ABSPATH')) {
     define('ABSPATH', dirname(__DIR__) . '/');
@@ -38,4 +32,29 @@ if (! defined('WPAB_URL')) {
 }
 if (! defined('WPAB_VERSION')) {
     define('WPAB_VERSION', '0.2.0');
+}
+
+if (! class_exists('WP_Error')) {
+    class WP_Error
+    {
+        public function __construct(private string $code = '', private string $message = '')
+        {
+        }
+
+        public function get_error_code(): string
+        {
+            return $this->code;
+        }
+
+        public function get_error_message(): string
+        {
+            return $this->message;
+        }
+    }
+}
+
+// Load global-scope template functions after WordPress constants/stubs exist.
+$templates = dirname(__DIR__) . '/src/Support/template-functions.php';
+if (file_exists($templates)) {
+    require_once $templates;
 }

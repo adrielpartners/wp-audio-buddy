@@ -79,7 +79,10 @@ final class SettingsController
     {
         $current = $this->get_all();
 
-        $current['api_key'] = sanitize_text_field($input['api_key'] ?? '');
+        $api_key = sanitize_text_field($input['api_key'] ?? '');
+        if ('' !== $api_key) {
+            $current['api_key'] = $api_key;
+        }
         $current['transcription_model'] = sanitize_text_field($input['transcription_model'] ?? $current['transcription_model']);
         $current['excerpt_model'] = sanitize_text_field($input['excerpt_model'] ?? $current['excerpt_model']);
         $current['auto_transcribe_upload'] = ! empty($input['auto_transcribe_upload']) ? 1 : 0;
@@ -91,7 +94,10 @@ final class SettingsController
 
         $current['worker_url'] = esc_url_raw($input['worker_url'] ?? '');
         $current['worker_site_id'] = sanitize_key($input['worker_site_id'] ?? '');
-        $current['worker_shared_secret'] = sanitize_text_field($input['worker_shared_secret'] ?? '');
+        $worker_shared_secret = sanitize_text_field($input['worker_shared_secret'] ?? '');
+        if ('' !== $worker_shared_secret) {
+            $current['worker_shared_secret'] = $worker_shared_secret;
+        }
         $current['worker_chunk_seconds'] = max(60, min(900, absint($input['worker_chunk_seconds'] ?? 660)));
         $current['worker_file_size_threshold'] = absint($input['worker_file_size_threshold'] ?? 20971520);
         $current['worker_file_size_threshold'] = max(1048576, min(1073741824, $current['worker_file_size_threshold']));

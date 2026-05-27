@@ -13,6 +13,8 @@ if (! defined('ABSPATH')) {
 }
 
 use AdrielPartners\WpAudioBuddy\Data\Meta;
+use AdrielPartners\WpAudioBuddy\Data\GeneratedOutputRepository;
+use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
 
 /**
  * Get the transcript text for an audio attachment.
@@ -24,6 +26,12 @@ function wpab_get_transcript(int $attachment_id): string
 {
     if (! $attachment_id || ! Meta::is_audio_attachment($attachment_id)) {
         return '';
+    }
+
+    $repo = new TranscriptRepository();
+    $row = $repo->get_latest_for_attachment($attachment_id);
+    if (null !== $row && '' !== trim((string) ($row['transcript_text'] ?? ''))) {
+        return (string) $row['transcript_text'];
     }
 
     return (string) get_post_meta($attachment_id, Meta::TRANSCRIPT, true);
@@ -39,6 +47,12 @@ function wpab_get_excerpt(int $attachment_id): string
 {
     if (! $attachment_id || ! Meta::is_audio_attachment($attachment_id)) {
         return '';
+    }
+
+    $repo = new GeneratedOutputRepository();
+    $row = $repo->get_latest_for_attachment($attachment_id, 'excerpt');
+    if (null !== $row && '' !== trim((string) ($row['output_text'] ?? ''))) {
+        return (string) $row['output_text'];
     }
 
     return (string) get_post_meta($attachment_id, Meta::EXCERPT, true);

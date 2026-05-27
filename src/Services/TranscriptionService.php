@@ -32,11 +32,11 @@ final class TranscriptionService
     ) {
     }
 
-    public function dispatch_to_worker(int $attachment_id): void
+    public function dispatch_to_worker(int $attachment_id, ?int $job_id = null): void
     {
-        $job = $this->current_job($attachment_id);
+        $job = $this->current_job($attachment_id, $job_id);
         if (null === $job) {
-            $this->fail($attachment_id, 'Cannot dispatch to worker: no local job record found.');
+            $this->fail($attachment_id, 'Cannot dispatch to worker: no local job record found.', $job_id);
             return;
         }
 
@@ -44,7 +44,7 @@ final class TranscriptionService
         $job_uuid = (string) ($job['job_uuid'] ?? '');
 
         update_post_meta($attachment_id, Meta::TRANSCRIPT_STATUS, 'running');
-        $this->update_job_status($attachment_id, 'waiting_for_worker', [
+        $this->update_job_status($attachment_id, $job_id, 'waiting_for_worker', [
             'started_at' => current_time('mysql'),
             'attempt_count' => ((int) ($job['attempt_count'] ?? 0)) + 1,
         ]);
@@ -52,7 +52,7 @@ final class TranscriptionService
         $result = $this->worker->dispatch($attachment_id, $job_id, $job_uuid);
 
         if (is_wp_error($result)) {
-            $this->fail($attachment_id, $result->get_error_message());
+            $this->fail($attachment_id, $result->get_error_message(), $job_id);
             return;
         }
 
@@ -62,7 +62,7 @@ final class TranscriptionService
         ]);
     }
 
-    public function handle(int $attachment_id): void
+    public function handle(int $attachment_id, ?int $job_id = null): void
     {
         if (! Meta::is_audio_attachment($attachment_id)) {
             return;
@@ -71,20 +71,22 @@ final class TranscriptionService
         Meta::clear_chunk_meta($attachment_id);
         update_post_meta($attachment_id, Meta::TRANSCRIPT_STATUS, 'running');
         delete_post_meta($attachment_id, Meta::TRANSCRIPT_ERROR);
-        $this->update_job_status($attachment_id, 'running', ['started_at' => current_time('mysql')]);
+        $job = $this->current_job($attachment_id, $job_id);
+        $job_id = $job ? (int) $job['id'] : $job_id;
+        $this->update_job_status($attachment_id, $job_id, 'running', ['started_at' => current_time('mysql')]);
 
         $api_key = (string) $this->settings->get('api_key', '');
         $model = (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe');
         $file_path = get_attached_file($attachment_id);
 
         if (empty($api_key) || ! $file_path || ! file_exists($file_path)) {
-            $this->fail($attachment_id, 'Missing API key or audio file.');
+            $this->fail($attachment_id, 'Missing API key or audio file.', $job_id);
             return;
         }
 
         $plan = $this->chunker->prepare($file_path, $attachment_id);
         if (is_wp_error($plan)) {
-            $this->fail($attachment_id, $plan->get_error_message());
+            $this->fail($attachment_id, $plan->get_error_message(), $job_id);
             $this->logger->error('transcription_chunk_prepare', $plan->get_error_message(), $attachment_id);
             return;
         }
@@ -92,11 +94,11 @@ final class TranscriptionService
         if (empty($plan['chunking'])) {
             $response = $this->openai->transcribe($api_key, $model, $file_path, (string) get_post_mime_type($attachment_id));
             if (is_wp_error($response)) {
-                $this->handle_transcription_error($attachment_id, $response);
+                $this->handle_transcription_error($attachment_id, $response, $job_id);
                 return;
             }
 
-            $this->save_final_transcript($attachment_id, trim((string) $response['text']), $model);
+            $this->save_final_transcript($attachment_id, trim((string) $response['text']), $model, null, $job_id);
             return;
         }
 
@@ -109,14 +111,14 @@ final class TranscriptionService
         foreach ($manifest as $chunk) {
             $index = (int) ($chunk['index'] ?? 0);
             update_post_meta($attachment_id, Meta::chunk_status_key($index), 'queued');
-            $this->queue->enqueue_transcription_chunk($attachment_id, $index);
+            $this->queue->enqueue_transcription_chunk($attachment_id, $index, $job_id);
         }
 
-        $this->queue->enqueue_transcription_finalizer($attachment_id);
+        $this->queue->enqueue_transcription_finalizer($attachment_id, $job_id);
         $this->logger->info('transcription_chunk_prepare', 'Chunk plan prepared and jobs enqueued.', $attachment_id, ['total' => (int) $plan['total']]);
     }
 
-    public function handle_chunk(int $attachment_id, int $chunk_index): void
+    public function handle_chunk(int $attachment_id, int $chunk_index, ?int $job_id = null): void
     {
         if ('error' === Meta::transcript_status($attachment_id)) {
             return;
@@ -125,13 +127,13 @@ final class TranscriptionService
         $manifest = (array) get_post_meta($attachment_id, Meta::TRANSCRIPT_CHUNKS_MANIFEST, true);
         $chunk = $this->find_chunk($manifest, $chunk_index);
         if (null === $chunk) {
-            $this->fail($attachment_id, 'Missing chunk manifest entry for chunk #' . $chunk_index);
+            $this->fail($attachment_id, 'Missing chunk manifest entry for chunk #' . $chunk_index, $job_id);
             return;
         }
 
         $chunk_path = (string) ($chunk['path'] ?? '');
         if (! $chunk_path || ! file_exists($chunk_path)) {
-            $this->fail_chunk($attachment_id, $chunk_index, 'Chunk file missing for chunk #' . $chunk_index);
+            $this->fail_chunk($attachment_id, $chunk_index, 'Chunk file missing for chunk #' . $chunk_index, $job_id);
             return;
         }
 
@@ -142,7 +144,7 @@ final class TranscriptionService
         $response = $this->openai->transcribe($api_key, $model, $chunk_path, 'audio/mpeg');
 
         if (is_wp_error($response)) {
-            $this->fail_chunk($attachment_id, $chunk_index, $response->get_error_message());
+            $this->fail_chunk($attachment_id, $chunk_index, $response->get_error_message(), $job_id);
             return;
         }
 
@@ -153,10 +155,10 @@ final class TranscriptionService
         update_post_meta($attachment_id, Meta::TRANSCRIPT_CHUNKS_DONE, $done);
 
         $this->logger->info('transcription_chunk_done', 'Chunk transcribed.', $attachment_id, ['chunk' => $chunk_index, 'done' => $done]);
-        $this->queue->enqueue_transcription_finalizer($attachment_id);
+        $this->queue->enqueue_transcription_finalizer($attachment_id, $job_id);
     }
 
-    public function finalize_chunked_transcript(int $attachment_id): void
+    public function finalize_chunked_transcript(int $attachment_id, ?int $job_id = null): void
     {
         if ('error' === Meta::transcript_status($attachment_id)) {
             return;
@@ -175,14 +177,14 @@ final class TranscriptionService
             $idx = (int) ($chunk['index'] ?? 0);
             if ('error' === (string) get_post_meta($attachment_id, Meta::chunk_status_key($idx), true)) {
                 $error = (string) get_post_meta($attachment_id, Meta::chunk_error_key($idx), true);
-                $this->fail($attachment_id, 'Chunk #' . $idx . ' failed: ' . $error);
+                $this->fail($attachment_id, 'Chunk #' . $idx . ' failed: ' . $error, $job_id);
                 return;
             }
         }
 
         if ($done < $total) {
             $this->logger->info('transcription_finalize_wait', 'Not all chunks done yet.', $attachment_id, ['done' => $done, 'total' => $total]);
-            $this->queue->enqueue_transcription_finalizer($attachment_id);
+            $this->queue->enqueue_transcription_finalizer($attachment_id, $job_id);
             return;
         }
 
@@ -194,18 +196,18 @@ final class TranscriptionService
 
         $combined = trim(implode("\n\n", array_filter($parts, static fn ($v): bool => '' !== $v)));
         if ('' === $combined) {
-            $this->fail($attachment_id, 'Chunk transcription completed but combined transcript was empty.');
+            $this->fail($attachment_id, 'Chunk transcription completed but combined transcript was empty.', $job_id);
             return;
         }
 
         $model = (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe');
-        $this->save_final_transcript($attachment_id, $combined, $model);
+        $this->save_final_transcript($attachment_id, $combined, $model, null, $job_id);
         $this->chunker->cleanup($manifest);
         Meta::clear_chunk_meta($attachment_id);
         $this->logger->info('transcription_stitch_complete', 'Chunk transcripts stitched and finalized.', $attachment_id, ['total' => $total]);
     }
 
-    public function save_final_transcript(int $attachment_id, string $transcript, string $model, ?int $seconds = null): void
+    public function save_final_transcript(int $attachment_id, string $transcript, string $model, ?int $seconds = null, ?int $job_id = null): void
     {
         if ($this->settings->get('auto_format_transcript')) {
             $transcript = $this->excerpt_service->format_transcript($transcript);
@@ -222,10 +224,9 @@ final class TranscriptionService
         }
         update_post_meta($attachment_id, Meta::TRANSCRIPT_SECONDS, max(0, (int) $seconds));
 
-        $this->update_job_status($attachment_id, 'completed', ['completed_at' => current_time('mysql')]);
-
-        $job = $this->current_job($attachment_id);
-        $job_id = $job ? (int) $job['id'] : null;
+        $job = $this->current_job($attachment_id, $job_id);
+        $job_id = $job ? (int) $job['id'] : $job_id;
+        $this->update_job_status($attachment_id, $job_id, 'completed', ['completed_at' => current_time('mysql')]);
 
         $this->transcripts->insert([
             'attachment_id' => $attachment_id,
@@ -244,20 +245,27 @@ final class TranscriptionService
         }
     }
 
-/**
+    /**
      * Find the most recent job record for an attachment.
      */
-    private function current_job(int $attachment_id): ?array
+    private function current_job(int $attachment_id, ?int $job_id = null): ?array
     {
-        return $this->jobs->get_latest_for_attachment($attachment_id);
+        if (null !== $job_id && $job_id > 0) {
+            $job = $this->jobs->get_by_id($job_id);
+            if (null !== $job && (int) ($job['attachment_id'] ?? 0) === $attachment_id && 'transcribe' === ($job['operation'] ?? '')) {
+                return $job;
+            }
+        }
+
+        return $this->jobs->get_latest_for_attachment_operation($attachment_id, 'transcribe');
     }
 
     /**
      * Update the status on the latest job for an attachment, if one exists.
      */
-    private function update_job_status(int $attachment_id, string $status, array $extra = []): void
+    private function update_job_status(int $attachment_id, ?int $job_id, string $status, array $extra = []): void
     {
-        $job = $this->current_job($attachment_id);
+        $job = $this->current_job($attachment_id, $job_id);
         if (null === $job) {
             return;
         }
@@ -269,20 +277,24 @@ final class TranscriptionService
     /**
      * Handle a transcription API error with bounded retry for transient failures.
      */
-    private function handle_transcription_error(int $attachment_id, \WP_Error $error): void
+    private function handle_transcription_error(int $attachment_id, \WP_Error $error, ?int $job_id = null): void
     {
         $message = $error->get_error_message();
 
         if (OpenAIClient::is_transient_error($error)) {
-            $job = $this->current_job($attachment_id);
+            $job = $this->current_job($attachment_id, $job_id);
             $attempts = $job ? (int) ($job['attempt_count'] ?? 0) : 0;
 
             if ($attempts < OpenAIClient::MAX_RETRIES) {
                 $new_attempts = $attempts + 1;
-                $this->update_job_status($attachment_id, 'queued', [
+                $job_id = $job ? (int) $job['id'] : $job_id;
+                $processing_mode = (string) ($job['processing_mode'] ?? 'local');
+                $this->update_job_status($attachment_id, $job_id, 'queued', [
                     'attempt_count' => $new_attempts,
                 ]);
-                $this->queue->enqueue_transcription($attachment_id);
+                if (null !== $job_id && $job_id > 0) {
+                    $this->queue->enqueue_existing_transcription($attachment_id, $job_id, $processing_mode);
+                }
                 $this->logger->info('transcription_retry', 'Retrying transcription after transient error.', $attachment_id, [
                     'attempt' => $new_attempts,
                     'max' => OpenAIClient::MAX_RETRIES,
@@ -294,22 +306,22 @@ final class TranscriptionService
             $message = 'Transcription failed after ' . OpenAIClient::MAX_RETRIES . ' attempts: ' . $message;
         }
 
-        $this->fail($attachment_id, $message);
+        $this->fail($attachment_id, $message, $job_id);
     }
 
-    private function fail_chunk(int $attachment_id, int $chunk_index, string $message): void
+    private function fail_chunk(int $attachment_id, int $chunk_index, string $message, ?int $job_id = null): void
     {
         update_post_meta($attachment_id, Meta::chunk_status_key($chunk_index), 'error');
         update_post_meta($attachment_id, Meta::chunk_error_key($chunk_index), $message);
-        $this->fail($attachment_id, 'Chunk #' . $chunk_index . ': ' . $message);
+        $this->fail($attachment_id, 'Chunk #' . $chunk_index . ': ' . $message, $job_id);
         $this->logger->error('transcription_chunk_error', $message, $attachment_id, ['chunk' => $chunk_index]);
     }
 
-    public function fail(int $attachment_id, string $message): void
+    public function fail(int $attachment_id, string $message, ?int $job_id = null): void
     {
         update_post_meta($attachment_id, Meta::TRANSCRIPT_STATUS, 'error');
         update_post_meta($attachment_id, Meta::TRANSCRIPT_ERROR, $message);
-        $this->update_job_status($attachment_id, 'failed', [
+        $this->update_job_status($attachment_id, $job_id, 'failed', [
             'failed_at' => current_time('mysql'),
             'error_message' => $message,
             'error_code' => 'transcription_failed',

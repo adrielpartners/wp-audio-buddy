@@ -6,7 +6,10 @@
             <tr><th colspan="2"><h2><?php esc_html_e('OpenAI', 'wp-audio-buddy'); ?></h2></th></tr>
             <tr>
                 <th><label for="wpab_api_key"><?php esc_html_e('OpenAI API Key', 'wp-audio-buddy'); ?></label></th>
-                <td><input type="password" id="wpab_api_key" class="regular-text" name="wpab_settings[api_key]" value="<?php echo esc_attr($settings['api_key']); ?>" autocomplete="off"></td>
+                <td>
+                    <input type="password" id="wpab_api_key" class="regular-text" name="wpab_settings[api_key]" value="" autocomplete="off" placeholder="<?php echo esc_attr(! empty($settings['api_key']) ? __('Saved - enter a new key to replace', 'wp-audio-buddy') : ''); ?>">
+                    <p class="description"><?php esc_html_e('Leave blank to keep the saved key.', 'wp-audio-buddy'); ?></p>
+                </td>
             </tr>
             <tr>
                 <th><label for="wpab_transcription_model"><?php esc_html_e('Transcription model', 'wp-audio-buddy'); ?></label></th>
@@ -52,7 +55,10 @@
             </tr>
             <tr>
                 <th><label for="wpab_worker_shared_secret"><?php esc_html_e('Worker Shared Secret', 'wp-audio-buddy'); ?></label></th>
-                <td><input type="password" id="wpab_worker_shared_secret" class="regular-text" name="wpab_settings[worker_shared_secret]" value="<?php echo esc_attr($settings['worker_shared_secret']); ?>" autocomplete="off"></td>
+                <td>
+                    <input type="password" id="wpab_worker_shared_secret" class="regular-text" name="wpab_settings[worker_shared_secret]" value="" autocomplete="off" placeholder="<?php echo esc_attr(! empty($settings['worker_shared_secret']) ? __('Saved - enter a new secret to replace', 'wp-audio-buddy') : ''); ?>">
+                    <p class="description"><?php esc_html_e('Leave blank to keep the saved worker secret.', 'wp-audio-buddy'); ?></p>
+                </td>
             </tr>
             <tr>
                 <th><label for="wpab_worker_chunk_seconds"><?php esc_html_e('Worker chunk seconds', 'wp-audio-buddy'); ?></label></th>

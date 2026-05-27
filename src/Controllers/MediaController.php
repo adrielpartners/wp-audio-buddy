@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace AdrielPartners\WpAudioBuddy\Controllers;
 
 use AdrielPartners\WpAudioBuddy\Data\JobRepository;
+use AdrielPartners\WpAudioBuddy\Data\GeneratedOutputRepository;
 use AdrielPartners\WpAudioBuddy\Data\LoggerRepository;
 use AdrielPartners\WpAudioBuddy\Data\Meta;
+use AdrielPartners\WpAudioBuddy\Data\TranscriptRepository;
 use AdrielPartners\WpAudioBuddy\Services\QueueService;
 
 if (! defined('ABSPATH')) {
@@ -19,7 +21,9 @@ final class MediaController
         private SettingsController $settings,
         private QueueService $queue,
         private LoggerRepository $logger,
-        private JobRepository $jobs
+        private JobRepository $jobs,
+        private TranscriptRepository $transcripts,
+        private GeneratedOutputRepository $outputs
     ) {
         add_filter('attachment_fields_to_edit', [$this, 'attachment_fields'], 10, 2);
         add_filter('attachment_fields_to_save', [$this, 'save_attachment_fields'], 10, 2);
@@ -100,7 +104,7 @@ final class MediaController
         $form_fields[Meta::TRANSCRIPT] = [
             'label' => __('Transcription', 'wp-audio-buddy'),
             'input' => 'textarea',
-            'value' => (string) get_post_meta($post->ID, Meta::TRANSCRIPT, true),
+            'value' => $this->latest_transcript_text($post->ID),
             'helps' => wpab_transcript_meta_html($post->ID, $job),
             'show_in_edit' => true,
             'show_in_modal' => true,
@@ -109,7 +113,7 @@ final class MediaController
         $form_fields[Meta::EXCERPT] = [
             'label' => __('Excerpt', 'wp-audio-buddy'),
             'input' => 'textarea',
-            'value' => (string) get_post_meta($post->ID, Meta::EXCERPT, true),
+            'value' => $this->latest_excerpt_text($post->ID),
             'helps' => wpab_excerpt_meta_html($post->ID),
             'show_in_edit' => true,
             'show_in_modal' => true,
@@ -135,13 +139,32 @@ final class MediaController
         }
 
         if (isset($attachment[Meta::TRANSCRIPT])) {
-            update_post_meta($attachment_id, Meta::TRANSCRIPT, sanitize_textarea_field($attachment[Meta::TRANSCRIPT]));
+            $transcript = sanitize_textarea_field($attachment[Meta::TRANSCRIPT]);
+            update_post_meta($attachment_id, Meta::TRANSCRIPT, $transcript);
             update_post_meta($attachment_id, Meta::TRANSCRIPT_UPDATED, current_time('mysql'));
+            $latest = $this->transcripts->get_latest_for_attachment($attachment_id);
+            if (null !== $latest) {
+                $this->transcripts->update((int) $latest['id'], ['transcript_text' => $transcript]);
+            } elseif ('' !== trim($transcript)) {
+                $this->transcripts->insert([
+                    'attachment_id' => $attachment_id,
+                    'transcript_text' => $transcript,
+                    'metadata_json' => wp_json_encode(['source' => 'manual_edit']),
+                ]);
+            }
         }
 
         if (isset($attachment[Meta::EXCERPT])) {
-            update_post_meta($attachment_id, Meta::EXCERPT, sanitize_textarea_field($attachment[Meta::EXCERPT]));
+            $excerpt = sanitize_textarea_field($attachment[Meta::EXCERPT]);
+            update_post_meta($attachment_id, Meta::EXCERPT, $excerpt);
             update_post_meta($attachment_id, Meta::EXCERPT_UPDATED, current_time('mysql'));
+            $this->outputs->insert([
+                'attachment_id' => $attachment_id,
+                'output_type' => 'excerpt',
+                'prompt_type' => 'manual_edit',
+                'output_text' => $excerpt,
+                'metadata_json' => wp_json_encode(['source' => 'manual_edit']),
+            ]);
         }
 
         return $post;
@@ -193,6 +216,26 @@ final class MediaController
         if (! current_user_can('upload_files')) {
             wp_die(esc_html__('Permission denied.', 'wp-audio-buddy'));
         }
+    }
+
+    private function latest_transcript_text(int $attachment_id): string
+    {
+        $row = $this->transcripts->get_latest_for_attachment($attachment_id);
+        if (null !== $row && '' !== trim((string) ($row['transcript_text'] ?? ''))) {
+            return (string) $row['transcript_text'];
+        }
+
+        return (string) get_post_meta($attachment_id, Meta::TRANSCRIPT, true);
+    }
+
+    private function latest_excerpt_text(int $attachment_id): string
+    {
+        $row = $this->outputs->get_latest_for_attachment($attachment_id, 'excerpt');
+        if (null !== $row && '' !== trim((string) ($row['output_text'] ?? ''))) {
+            return (string) $row['output_text'];
+        }
+
+        return (string) get_post_meta($attachment_id, Meta::EXCERPT, true);
     }
 
     /**

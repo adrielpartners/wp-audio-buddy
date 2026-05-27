@@ -73,6 +73,11 @@ final class Plugin
 
     public function boot(): void
     {
+        $schema = new Schema();
+        if ($schema->needs_update()) {
+            $schema->install();
+        }
+
         // Load global-scope template functions.
         require_once WPAB_PATH . 'src/Support/template-functions.php';
         // Load view helper functions.
@@ -109,7 +114,7 @@ final class Plugin
             $logs_page->register_menu(BulkToolsController::PARENT_SLUG);
         }, 20);
 
-        new MediaController($this->settings, $this->queue, $this->logger, $this->jobs);
+        new MediaController($this->settings, $this->queue, $this->logger, $this->jobs, $this->transcripts, $this->outputs);
         new EditorController($this->settings);
         new FrontendController();
 

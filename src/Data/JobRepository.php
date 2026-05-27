@@ -187,6 +187,24 @@ final class JobRepository
     }
 
     /**
+     * Get the most recent job for an attachment and operation.
+     */
+    public function get_latest_for_attachment_operation(int $attachment_id, string $operation): ?array
+    {
+        global $wpdb;
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}" . Schema::TABLE_JOBS . ' WHERE attachment_id = %d AND operation = %s ORDER BY created_at DESC LIMIT 1',
+                $attachment_id,
+                $operation
+            ),
+            ARRAY_A
+        );
+
+        return $row ?: null;
+    }
+
+    /**
      * Count jobs by status.
      */
     public function count_by_status(string $status): int

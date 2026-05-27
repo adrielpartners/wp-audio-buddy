@@ -142,7 +142,7 @@ wp-audio-buddy/
 | `{prefix}wpab_generated_outputs` | AI-generated excerpts and summaries |
 | `{prefix}wpab_logs` | Operational event log for diagnostics |
 
-Tables are created on plugin activation via `dbDelta()`. Schema version is tracked in `wpab_db_version`.
+Tables are created on plugin activation via `dbDelta()` and checked again on plugin boot when `wpab_db_version` changes.
 
 ---
 
@@ -178,6 +178,14 @@ WP Audio Buddy can offload heavy audio processing to a companion `wpab-worker` s
 
 Worker communication uses HMAC-SHA256 signing. All outgoing requests include `X-WPAB-Signature`, `X-WPAB-Timestamp`, and `X-WPAB-Site-ID` headers. Callbacks from the worker are verified before any data is written.
 
+The worker callback URL is:
+
+```text
+POST /wp-json/wpab/v1/worker-callback
+```
+
+Worker audio access uses a short-lived signed download URL generated for the local job. The URL is bound to the attachment ID, job UUID, expiration timestamp, and shared secret.
+
 ---
 
 ## Local Development
@@ -203,9 +211,8 @@ composer dump-autoload
 
 ## Known Limitations
 
-- **FFmpeg required for long files** — Audio files over ~15 minutes or 20MB require FFmpeg for chunking. Without it, these files will fail to transcribe locally.
-- **No signed download URLs** — The worker receives the attachment's public URL directly. Short-lived signed URLs are planned for a future release.
-- **Single excerpt per attachment** — Only one excerpt is stored per audio attachment. Regenerating overwrites the previous one.
+- **FFmpeg or worker required for long files** — Audio files over the local threshold require FFmpeg for local chunking or a configured worker. Without either, the plugin fails gracefully instead of attempting risky local processing.
+- **Latest generated output is displayed by default** — Generated output records are kept in the custom table, while shortcodes and template functions display the latest excerpt/summary for the attachment.
 - **No WordPress Multisite explicit support** — The plugin has not been specifically tested on multisite installations.
 - **Transcription from worker only** — The worker path is a one-way dispatch. The worker does not stream progress back to WordPress.
 
@@ -216,14 +223,14 @@ composer dump-autoload
 - [x] Phase 0-1: Repository baseline and structure normalization
 - [x] Phase 2: Settings foundation with processing mode
 - [x] Phase 3-4: Custom tables and job workflow
-- [x] Phase 5: Local transcription path with OpanAI client and retry
+- [x] Phase 5: Local transcription path with OpenAI client and bounded retry
 - [x] Phase 6-7: Worker dispatch and callback handling
 - [x] Phase 8-9: Transcript display and excerpt generation
 - [x] Phase 10: Frontend shortcodes and template functions
 - [x] Phase 11: Testing and hardening
 - [x] Phase 12: Documentation and handoff
 - [ ] FFmpeg availability check with admin notice
-- [ ] Signed temporary download URLs for worker
+- [x] Signed temporary download URLs for worker
 - [ ] WP-CLI commands for batch operations
 - [ ] REST API endpoints for external integrations
 - [ ] Transcript version history

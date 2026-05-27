@@ -655,8 +655,8 @@ All 12 phases of the implementation plan are now complete. These final additions
 
 ## Tradeoffs
 
-- Shortcodes read from postmeta (not custom tables), which means they show the editable version of transcripts/excerpts — consistent with the admin UI behavior
-- Excerpt retry uses WordPress transients for attempt counting rather than the `attempt_count` column on the jobs table, since excerpt jobs don't currently use the jobs table for state tracking
+- Shortcodes originally read from postmeta; Decision 023 changed them to prefer custom tables while keeping postmeta fallback behavior.
+- Excerpt retry originally had weaker job tracking; Decision 021 changed retries to use the `attempt_count` column on the existing custom-table job.
 
 ## Date Adopted
 
@@ -665,6 +665,109 @@ All 12 phases of the implementation plan are now complete. These final additions
 ## Reversibility
 
 Easy. Shortcodes and template functions can be removed without affecting stored data.
+
+---
+
+# Decision 021: Bind background work and worker callbacks to durable job IDs
+
+## Decision
+
+Queued transcription, chunk, finalizer, worker-dispatch, and excerpt actions now carry the local custom-table job ID in addition to the attachment ID.
+
+Worker callbacks save results against the matched local job, and retries update the existing job record instead of creating a new job.
+
+## Rationale
+
+Attachment-level "latest job" lookup was not reliable once an attachment could have both transcription and excerpt jobs. It also broke bounded retry accounting because retry enqueueing created a fresh job with `attempt_count = 0`.
+
+Using the job ID as the workflow handle makes state transitions explicit, prevents unbounded retry loops, and keeps job history trustworthy.
+
+## Tradeoffs
+
+- Scheduled action payloads are slightly larger.
+- Existing one-argument scheduled actions remain supported through nullable job IDs and operation-specific fallback lookup.
+- Service method signatures are a little more explicit.
+
+## Date Adopted
+
+2026-05-27
+
+## Reversibility
+
+Not recommended. Reverting to attachment-only job lookup would reintroduce retry and status ambiguity.
+
+---
+
+# Decision 022: Worker communication signs timestamp, site ID, and body; audio uses signed download URLs
+
+## Decision
+
+Worker dispatch now sends short-lived signed audio download URLs instead of public attachment URLs.
+
+Worker callbacks must include:
+
+```text
+X-WPAB-Site-ID
+X-WPAB-Timestamp
+X-WPAB-Signature
+```
+
+The callback signature covers the timestamp, site ID, and raw JSON body. The download URL signature covers the HTTP method, attachment ID, job UUID, and expiration timestamp.
+
+The canonical callback route is:
+
+```text
+POST /wp-json/wpab/v1/worker-callback
+```
+
+## Rationale
+
+The project rules require signed worker callbacks and short-lived signed audio access. Signing only the raw body left replay protection weaker than intended, especially when timestamp headers were optional.
+
+Binding the signature to timestamp and site ID makes replay and cross-site misuse harder. Binding audio URLs to a local job UUID ensures the worker can only fetch the intended attachment during the allowed window.
+
+## Tradeoffs
+
+- The worker must implement the same signing contract.
+- Clock skew beyond the tolerance window causes callbacks to be rejected.
+- The legacy `/wp-json/wp-audio-buddy/v1/transcription-callback` route remains registered temporarily but uses the stricter signature requirements.
+
+## Date Adopted
+
+2026-05-27
+
+## Reversibility
+
+The exact signature base string can evolve with a coordinated plugin/worker update, but unsigned or body-only worker callbacks should not return.
+
+---
+
+# Decision 023: Custom tables are the preferred read source for generated content
+
+## Decision
+
+Transcript and generated-output repositories are now preferred for frontend shortcodes, template functions, editor copy tools, media attachment fields, and excerpt-generation input.
+
+Attachment post meta remains as a compatibility mirror for lightweight display/status and for existing installations.
+
+## Rationale
+
+The architecture and data decisions say durable plugin-owned content belongs in custom tables. Dual-writing without reading from those tables left the custom schema acting more like a log than the source of truth.
+
+Preferring repositories improves alignment with the architecture while preserving backward compatibility with older postmeta-backed data.
+
+## Tradeoffs
+
+- Some code paths still mirror to post meta for compatibility.
+- Manual media edits insert or update custom-table records, so generated-output history can include manual edits.
+
+## Date Adopted
+
+2026-05-27
+
+## Reversibility
+
+Moderate. The fallback to post meta remains, but new code should continue to prefer repositories.
 
 ---
 

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace AdrielPartners\WpAudioBuddy\Controllers;
 
-use AdrielPartners\WpAudioBuddy\Data\Meta;
-
 if (! defined('ABSPATH')) {
     exit;
 }
@@ -55,8 +53,8 @@ final class EditorController
             $items[] = [
                 'id' => $attachment->ID,
                 'title' => get_the_title($attachment),
-                'transcript' => (string) get_post_meta($attachment->ID, Meta::TRANSCRIPT, true),
-                'excerpt' => (string) get_post_meta($attachment->ID, Meta::EXCERPT, true),
+                'transcript' => wpab_get_transcript((int) $attachment->ID),
+                'excerpt' => wpab_get_excerpt((int) $attachment->ID),
             ];
         }
 
