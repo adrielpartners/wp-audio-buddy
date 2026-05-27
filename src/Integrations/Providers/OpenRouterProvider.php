@@ -20,69 +20,65 @@ final class OpenRouterProvider implements TranscriptionProviderInterface, TextGe
     {
         $api_key = (string) ($config['api_key'] ?? '');
         $model = (string) ($config['model'] ?? 'openai/whisper-1');
-        $endpoint = rtrim((string) ($config['endpoint'] ?? 'https://openrouter.ai/api'), '/');
-        $endpoint = preg_replace('#/v1$#', '', $endpoint);
+        $endpoint = self::normalize_endpoint((string) ($config['endpoint'] ?? 'https://openrouter.ai/api'));
 
         if ('' === $api_key) {
-            return new \WP_Error('AUTH_FAILED', 'OpenRouter API key is missing.');
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_AUTH, 'OpenRouter API key is missing.');
         }
 
         if (! file_exists($file_path)) {
-            return new \WP_Error('AUDIO_NOT_FOUND', 'Audio file not found.');
+            return new \WP_Error(OpenAIProvider::ERROR_AUDIO_NOT_FOUND, 'Audio file not found.');
         }
 
-        if (! function_exists('curl_init')) {
-            return new \WP_Error('CURL_REQUIRED', 'cURL is required for transcription.');
+        if (! is_readable($file_path)) {
+            return new \WP_Error(OpenAIProvider::ERROR_AUDIO_UNREADABLE, 'Audio file is not readable.');
+        }
+
+        if (! self::has_memory_for_base64_payload($file_path)) {
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_FILE_TOO_LARGE, 'Audio file is too large to prepare safely for OpenRouter transcription on this server.');
         }
 
         $url = $endpoint . '/v1/audio/transcriptions';
         $site_url = function_exists('get_site_url') ? get_site_url() : '';
+        $audio = file_get_contents($file_path);
+        if (false === $audio) {
+            return new \WP_Error(OpenAIProvider::ERROR_AUDIO_UNREADABLE, 'Audio file could not be read.');
+        }
 
-        $cfile = new \CURLFile($file_path, $mime, basename($file_path));
-        $post_data = [
-            'file' => $cfile,
+        $data = [
+            'input_audio' => [
+                'data' => base64_encode($audio),
+                'format' => self::audio_format($file_path, $mime),
+            ],
             'model' => $model,
         ];
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $post_data,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 300,
-            CURLOPT_CONNECTTIMEOUT => 30,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $api_key,
-                'X-Title: WP Audio Buddy',
-                'HTTP-Referer: ' . $site_url,
+        $response = wp_safe_remote_post($url, [
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $api_key,
+                'HTTP-Referer' => $site_url,
+                'X-Title' => 'WP Audio Buddy',
             ],
+            'body' => wp_json_encode($data),
+            'timeout' => 300,
         ]);
 
-        $raw = curl_exec($ch);
-        $curl_err = curl_error($ch);
-        $http_code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if (false === $raw) {
-            return new \WP_Error('NETWORK_ERROR', $curl_err ?: 'Transcription request failed.');
+        if (is_wp_error($response)) {
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_NETWORK, $response->get_error_message());
         }
 
+        $http_code = (int) wp_remote_retrieve_response_code($response);
+        $raw = wp_remote_retrieve_body($response);
+
         if ($http_code >= 400) {
-            $body = json_decode($raw, true);
-            $message = $body['error']['message'] ?? ($body['error'] ?? 'Unknown API error.');
-            $code = match (true) {
-                $http_code === 401 => 'AUTH_FAILED',
-                $http_code === 429 => 'RATE_LIMITED',
-                $http_code >= 500 => 'SERVER_ERROR',
-                default => 'INVALID_REQUEST',
-            };
-            return new \WP_Error($code, $message);
+            $error = self::normalize_http_error($http_code, $raw);
+            return new \WP_Error($error['code'], $error['message']);
         }
 
         $body = json_decode((string) $raw, true);
         if (empty($body['text'])) {
-            return new \WP_Error('EMPTY_RESPONSE', 'No transcript text was returned.');
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_EMPTY, 'No transcript text was returned.');
         }
 
         return ['text' => $body['text'], 'model' => $model];
@@ -92,12 +88,12 @@ final class OpenRouterProvider implements TranscriptionProviderInterface, TextGe
     {
         $api_key = (string) ($config['api_key'] ?? '');
         $model = (string) ($config['model'] ?? 'openai/gpt-4o-mini');
-        $endpoint = rtrim((string) ($config['endpoint'] ?? 'https://openrouter.ai/api'), '/');
+        $endpoint = self::normalize_endpoint((string) ($config['endpoint'] ?? 'https://openrouter.ai/api'));
         $temperature = $config['temperature'] ?? null;
         $site_url = function_exists('get_site_url') ? get_site_url() : '';
 
         if ('' === $api_key) {
-            return new \WP_Error('AUTH_FAILED', 'OpenRouter API key is missing.');
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_AUTH, 'OpenRouter API key is missing.');
         }
 
         $url = $endpoint . '/v1/chat/completions';
@@ -128,31 +124,101 @@ final class OpenRouterProvider implements TranscriptionProviderInterface, TextGe
         $response = wp_safe_remote_post($url, $args);
 
         if (is_wp_error($response)) {
-            return new \WP_Error('NETWORK_ERROR', $response->get_error_message());
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_NETWORK, $response->get_error_message());
         }
 
         $http_code = (int) wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
 
         if ($http_code >= 400) {
-            $json_body = json_decode($body, true);
-            $message = $json_body['error']['message'] ?? ($json_body['error'] ?? 'OpenRouter API error.');
-            $code = match (true) {
-                $http_code === 401 => 'AUTH_FAILED',
-                $http_code === 429 => 'RATE_LIMITED',
-                $http_code >= 500 => 'SERVER_ERROR',
-                default => 'INVALID_REQUEST',
-            };
-            return new \WP_Error($code, $message);
+            $error = self::normalize_http_error($http_code, $body);
+            return new \WP_Error($error['code'], $error['message']);
         }
 
         $json = json_decode($body, true);
         $text = $json['choices'][0]['message']['content'] ?? '';
 
         if ('' === trim($text)) {
-            return new \WP_Error('EMPTY_RESPONSE', 'No content was returned by the model.');
+            return new \WP_Error(OpenAIProvider::ERROR_OPENAI_EMPTY, 'No content was returned by the model.');
         }
 
         return trim($text);
+    }
+
+    private static function normalize_endpoint(string $endpoint): string
+    {
+        $endpoint = rtrim($endpoint ?: 'https://openrouter.ai/api', '/');
+        return preg_replace('#/v1$#', '', $endpoint) ?: 'https://openrouter.ai/api';
+    }
+
+    private static function audio_format(string $file_path, string $mime): string
+    {
+        $extension = strtolower((string) pathinfo($file_path, PATHINFO_EXTENSION));
+        if (in_array($extension, ['wav', 'mp3', 'flac', 'm4a', 'ogg', 'webm', 'aac'], true)) {
+            return $extension;
+        }
+
+        return match (strtolower($mime)) {
+            'audio/wav', 'audio/x-wav' => 'wav',
+            'audio/mpeg', 'audio/mp3' => 'mp3',
+            'audio/flac', 'audio/x-flac' => 'flac',
+            'audio/mp4', 'audio/x-m4a' => 'm4a',
+            'audio/ogg', 'application/ogg' => 'ogg',
+            'audio/webm', 'video/webm' => 'webm',
+            'audio/aac' => 'aac',
+            default => $extension ?: 'mp3',
+        };
+    }
+
+    private static function has_memory_for_base64_payload(string $file_path): bool
+    {
+        $limit = self::memory_limit_bytes();
+        if ($limit <= 0) {
+            return true;
+        }
+
+        $size = filesize($file_path);
+        if (false === $size) {
+            return true;
+        }
+
+        $estimated = (int) ceil((float) $size * 2.5);
+        return memory_get_usage(true) + $estimated < (int) ($limit * 0.85);
+    }
+
+    private static function memory_limit_bytes(): int
+    {
+        $raw = ini_get('memory_limit');
+        if (false === $raw || '' === $raw || '-1' === $raw) {
+            return -1;
+        }
+
+        $raw = trim($raw);
+        $unit = strtolower(substr($raw, -1));
+        $value = (int) $raw;
+
+        return match ($unit) {
+            'g' => $value * 1024 * 1024 * 1024,
+            'm' => $value * 1024 * 1024,
+            'k' => $value * 1024,
+            default => $value,
+        };
+    }
+
+    private static function normalize_http_error(int $http_code, string $raw_body): array
+    {
+        $body = json_decode($raw_body, true);
+        $message = $body['error']['message'] ?? ($body['error'] ?? 'OpenRouter API error.');
+
+        $code = match (true) {
+            $http_code === 401 => OpenAIProvider::ERROR_OPENAI_AUTH,
+            $http_code === 429 => OpenAIProvider::ERROR_OPENAI_RATE_LIMIT,
+            $http_code === 413 => OpenAIProvider::ERROR_OPENAI_FILE_TOO_LARGE,
+            $http_code >= 500 => OpenAIProvider::ERROR_OPENAI_SERVER,
+            $http_code >= 400 => OpenAIProvider::ERROR_OPENAI_INVALID,
+            default => OpenAIProvider::ERROR_OPENAI_NETWORK,
+        };
+
+        return ['code' => $code, 'message' => is_string($message) ? $message : 'OpenRouter API error.'];
     }
 }

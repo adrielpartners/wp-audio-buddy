@@ -29,6 +29,15 @@ final class DeepgramProvider implements TranscriptionProviderInterface
             return new \WP_Error('AUDIO_NOT_FOUND', 'Audio file not found.');
         }
 
+        if (! is_readable($file_path)) {
+            return new \WP_Error('AUDIO_UNREADABLE', 'Audio file is not readable.');
+        }
+
+        $audio = file_get_contents($file_path);
+        if (false === $audio) {
+            return new \WP_Error('AUDIO_UNREADABLE', 'Audio file could not be read.');
+        }
+
         $url = $endpoint . '/v1/listen?model=' . rawurlencode($model) . '&punctuate=true';
 
         $args = [
@@ -36,7 +45,7 @@ final class DeepgramProvider implements TranscriptionProviderInterface
                 'Authorization' => 'Token ' . $api_key,
                 'Content-Type' => $mime,
             ],
-            'body' => file_get_contents($file_path),
+            'body' => $audio,
             'timeout' => 300,
         ];
 

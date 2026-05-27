@@ -75,6 +75,7 @@ final class Plugin
         if ($schema->needs_update()) {
             $schema->install();
         }
+        (new LoggerRepository())->create_table();
 
         // Load global-scope template functions.
         require_once WPAB_PATH . 'src/Support/template-functions.php';

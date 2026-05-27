@@ -880,7 +880,7 @@ External service calls must go through integration classes.
 Examples:
 
 ```text
-OpenAIClient
+OpenAIProvider
 WorkerClient
 PaymentClient
 EmailClient

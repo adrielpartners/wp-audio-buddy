@@ -24,7 +24,7 @@
                     $info = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getProviderInfo($slug);
                     $is_active = $slug === $transcription_config['provider'];
                     $is_compat = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::isOpenAICompatible($slug);
-                    $endpoint = $info['endpoint'] ?? 'https://api.openai.com';
+                    $endpoint = $settings['providers']['transcription']['endpoints'][$slug] ?? ($info['endpoint'] ?? 'https://api.openai.com');
                     $docs_url = $info['docs_url'] ?? '';
                     $has_key = ! empty($settings['providers']['transcription']['keys'][$slug]);
                     $key_placeholder = $has_key ? __('Key saved — enter new to replace', 'wp-audio-buddy') : __('Enter API key', 'wp-audio-buddy');
@@ -76,7 +76,7 @@
                     $info = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getProviderInfo($slug);
                     $is_active = $slug === $excerpt_config['provider'];
                     $is_compat = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::isOpenAICompatible($slug);
-                    $endpoint = $info['endpoint'] ?? 'https://api.openai.com';
+                    $endpoint = $settings['providers']['excerpt']['endpoints'][$slug] ?? ($info['endpoint'] ?? 'https://api.openai.com');
                     $docs_url = $info['docs_url'] ?? '';
                     $has_key = ! empty($settings['providers']['excerpt']['keys'][$slug]);
                     $key_placeholder = $has_key ? __('Key saved — enter new to replace', 'wp-audio-buddy') : __('Enter API key', 'wp-audio-buddy');

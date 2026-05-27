@@ -14,15 +14,19 @@ final class AudioChunker
     private const CHUNK_HARD_CAP_SECONDS = 900;
     private const MAX_CHUNK_BYTES = 20971520; // 20MB
 
-    public function prepare(string $source_path, int $attachment_id): array|\WP_Error
+    public function prepare(string $source_path, int $attachment_id, ?int $chunk_seconds = null, ?int $chunk_hard_cap_seconds = null, ?int $max_chunk_bytes = null): array|\WP_Error
     {
         if (! file_exists($source_path)) {
             return new \WP_Error('wpab_chunk_source_missing', 'Audio source file is missing.');
         }
 
+        $chunk_seconds = max(30, $chunk_seconds ?? self::CHUNK_SECONDS);
+        $chunk_hard_cap_seconds = max($chunk_seconds, $chunk_hard_cap_seconds ?? self::CHUNK_HARD_CAP_SECONDS);
+        $max_chunk_bytes = max(1048576, $max_chunk_bytes ?? self::MAX_CHUNK_BYTES);
+
         $duration = $this->probe_duration($source_path);
         $size = (int) filesize($source_path);
-        $needs_chunking = ($duration > self::CHUNK_HARD_CAP_SECONDS) || ($size > self::MAX_CHUNK_BYTES);
+        $needs_chunking = ($duration > $chunk_hard_cap_seconds) || ($size > $max_chunk_bytes);
 
         if (! $needs_chunking) {
             return [
@@ -49,8 +53,8 @@ final class AudioChunker
         }
 
         $chunks = $duration > 0
-            ? $this->chunk_with_known_duration($source_path, $tmp_dir, $duration)
-            : $this->chunk_with_segmenter($source_path, $tmp_dir);
+            ? $this->chunk_with_known_duration($source_path, $tmp_dir, $duration, $chunk_seconds, $max_chunk_bytes)
+            : $this->chunk_with_segmenter($source_path, $tmp_dir, $chunk_seconds, $max_chunk_bytes);
 
         if (is_wp_error($chunks)) {
             return $chunks;
@@ -128,14 +132,14 @@ final class AudioChunker
         return max(0, (float) trim((string) $output[0]));
     }
 
-    private function chunk_with_known_duration(string $source_path, string $tmp_dir, float $duration): array|\WP_Error
+    private function chunk_with_known_duration(string $source_path, string $tmp_dir, float $duration, int $chunk_seconds, int $max_chunk_bytes): array|\WP_Error
     {
         $chunks = [];
         $index = 0;
         $start = 0.0;
 
         while ($start < $duration) {
-            $length = min(self::CHUNK_SECONDS, max(1.0, $duration - $start));
+            $length = min($chunk_seconds, max(1.0, $duration - $start));
             $chunk_path = trailingslashit($tmp_dir) . 'chunk-' . str_pad((string) $index, 4, '0', STR_PAD_LEFT) . '.mp3';
 
             $res = $this->encode_chunk($source_path, $chunk_path, $start, $length, 48);
@@ -143,14 +147,14 @@ final class AudioChunker
                 return $res;
             }
 
-            if (filesize($chunk_path) > self::MAX_CHUNK_BYTES) {
+            if (filesize($chunk_path) > $max_chunk_bytes) {
                 $res = $this->encode_chunk($source_path, $chunk_path, $start, $length, 32);
                 if (is_wp_error($res)) {
                     return $res;
                 }
             }
 
-            if (filesize($chunk_path) > self::MAX_CHUNK_BYTES) {
+            if (filesize($chunk_path) > $max_chunk_bytes) {
                 return new \WP_Error('wpab_chunk_size', 'Chunk exceeds max upload-safe size even after re-encode.');
             }
 
@@ -168,7 +172,7 @@ final class AudioChunker
         return $chunks;
     }
 
-    private function chunk_with_segmenter(string $source_path, string $tmp_dir): array|\WP_Error
+    private function chunk_with_segmenter(string $source_path, string $tmp_dir, int $chunk_seconds, int $max_chunk_bytes): array|\WP_Error
     {
         if (! function_exists('exec')) {
             return new \WP_Error('wpab_exec_missing', 'Server command execution is not available for audio chunking.');
@@ -176,7 +180,7 @@ final class AudioChunker
 
         $pattern = trailingslashit($tmp_dir) . 'chunk-%04d.mp3';
         $cmd = 'ffmpeg -hide_banner -loglevel error -y -i ' . escapeshellarg($source_path) .
-            ' -ac 1 -ar 16000 -b:a 48k -f segment -segment_time ' . (int) self::CHUNK_SECONDS . ' ' . escapeshellarg($pattern) . ' 2>&1';
+            ' -ac 1 -ar 16000 -b:a 48k -f segment -segment_time ' . (int) $chunk_seconds . ' ' . escapeshellarg($pattern) . ' 2>&1';
 
         $output = [];
         $return = 1;
@@ -194,7 +198,7 @@ final class AudioChunker
         sort($files);
         $chunks = [];
         foreach (array_values($files) as $index => $file) {
-            if (filesize($file) > self::MAX_CHUNK_BYTES) {
+            if (filesize($file) > $max_chunk_bytes) {
                 return new \WP_Error('wpab_chunk_size', 'Chunk exceeds max upload-safe size; duration probe unavailable for adaptive split.');
             }
 

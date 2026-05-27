@@ -112,7 +112,7 @@ wp-audio-buddy/
 │   │   ├── Schema.php
 │   │   └── TranscriptRepository.php
 │   ├── Integrations/            # External service clients
-│   │   ├── OpenAIClient.php
+│   │   ├── Providers/
 │   │   └── WorkerClient.php
 │   ├── Security/                # Auth and signing
 │   │   └── SignatureService.php
@@ -127,7 +127,7 @@ wp-audio-buddy/
 ├── tests/
 │   ├── bootstrap.php
 │   └── Unit/                    # Unit tests
-│       └── OpenAIClientTest.php
+│       └── OpenAIProviderTest.php
 └── docs/                        # Project documentation
 ```
 

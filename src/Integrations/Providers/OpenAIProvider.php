@@ -170,6 +170,9 @@ final class OpenAIProvider implements TranscriptionProviderInterface, TextGenera
             self::ERROR_OPENAI_RATE_LIMIT,
             self::ERROR_OPENAI_SERVER,
             self::ERROR_OPENAI_NETWORK,
+            'RATE_LIMITED',
+            'SERVER_ERROR',
+            'NETWORK_ERROR',
         ], true);
     }
 

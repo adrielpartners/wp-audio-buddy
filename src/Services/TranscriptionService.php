@@ -92,7 +92,9 @@ final class TranscriptionService
             return;
         }
 
-        $plan = $this->chunker->prepare($file_path, $attachment_id);
+        $plan = 'openrouter' === ($config['provider'] ?? '')
+            ? $this->chunker->prepare($file_path, $attachment_id, 55, 55, 10485760)
+            : $this->chunker->prepare($file_path, $attachment_id);
         if (is_wp_error($plan)) {
             $this->fail($attachment_id, $plan->get_error_message(), $job_id);
             $this->logger->error('transcription_chunk_prepare', $plan->get_error_message(), $attachment_id);
@@ -163,7 +165,7 @@ final class TranscriptionService
             $this->fail_chunk($attachment_id, $chunk_index, 'No transcription provider available.', $job_id);
             return;
         }
-        $response = $provider->transcribe($chunk_path, 'audio/wav', $config);
+        $response = $provider->transcribe($chunk_path, 'audio/mpeg', $config);
 
         if (is_wp_error($response)) {
             $this->fail_chunk($attachment_id, $chunk_index, $response->get_error_message(), $job_id);
