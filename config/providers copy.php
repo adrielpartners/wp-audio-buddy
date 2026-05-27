@@ -100,115 +100,34 @@ return [
         // OpenRouter supports transcription via their /v1/audio/transcriptions endpoint
         // and offers multimodal audio models for chat completions.
         'transcription' => [
-    'class'         => \AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenRouterProvider::class,
-    'default_model' => 'openai/whisper-large-v3',
-
-    'models' => [
-
-        // Top Picks
-
-        'openai/whisper-large-v3' => [
-            'cost' => '0.0015/min'
-        ], // Best Overall
-
-        'google/chirp-3' => [
-            'cost' => '0.0016/min'
-        ], // Best Multilingual
-
-        'mistralai/voxtral-mini-transcribe' => [
-            'cost' => '0.003/min'
-        ], // Best Next-Gen Option
-
-
-        // Additional Options
-
-        'qwen/qwen3-asr-flash-2026-02-10' => [
-            'cost' => '0.0021/min'
-        ], // Qwen ASR Flash
-    ],
-],
-'text' => [
-    'class'         => \AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenRouterProvider::class,
-    'default_model' => 'google/gemini-2.5-flash',
-
-    'models' => [
-
-        // TOP PICK FROM EACH PROVIDER
-
-        'deepseek/deepseek-v4-flash' => [
-            'cost_in'  => 0.10,
-            'cost_out' => 0.20
-        ], // DeepSeek Recommended
-
-        'google/gemini-2.5-flash' => [
-            'cost_in'  => 0.30,
-            'cost_out' => 2.50
-        ], // Google Recommended
-
-        'mistralai/mistral-small-3.1' => [
-            'cost_in'  => 0.35,
-            'cost_out' => 0.56
-        ], // Mistral Recommended
-
-        'moonshotai/kimi-k2.5' => [
-            'cost_in'  => 0.40,
-            'cost_out' => 1.90
-        ], // Kimi Recommended
-
-        'openai/gpt-4.1-mini' => [
-            'cost_in'  => 0.40,
-            'cost_out' => 1.60
-        ], // OpenAI Recommended
-
-        'qwen/qwen-2.5-72b-instruct' => [
-            'cost_in'  => 0.36,
-            'cost_out' => 0.40
-        ], // Qwen Recommended
-
-
-        // ALL OTHER MODELS (Alphabetical)
-
-        'deepseek/deepseek-v3.2' => [
-            'cost_in'  => 0.252,
-            'cost_out' => 0.378
-        ], // DeepSeek V3.2
-
-        'deepseek/deepseek-v4-pro' => [
-            'cost_in'  => 0.435,
-            'cost_out' => 0.87
-        ], // DeepSeek V4 Pro
-
-        'google/gemini-2.5-flash-lite' => [
-            'cost_in'  => 0.10,
-            'cost_out' => 0.40
-        ], // Gemini 2.5 Flash-Lite
-
-        'moonshotai/kimi-k2' => [
-            'cost_in'  => 0.57,
-            'cost_out' => 2.30
-        ], // Kimi K2
-
-        'openai/gpt-4.1-nano' => [
-            'cost_in'  => 0.10,
-            'cost_out' => 0.40
-        ], // GPT-4.1 Nano
-
-        'openai/gpt-4o-mini' => [
-            'cost_in'  => 0.15,
-            'cost_out' => 0.60
-        ], // GPT-4o Mini
-
-        'qwen/qwen3-30b-a3b' => [
-            'cost_in'  => 0.09,
-            'cost_out' => 0.45
-        ], // Qwen3 30B A3B
-
-        'qwen/qwen3-32b' => [
-            'cost_in'  => 0.08,
-            'cost_out' => 0.28
-        ], // Qwen3 32B
-    ],
-],
+            'class'          => \AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenRouterProvider::class,
+            'default_model'  => 'openai/whisper-1',
+            'models'         => [
+                'nvidia/parakeet-tdt-0.6b-v3'       => ['cost' => '0.0015/min'], // NVIDIA: Parakeet TDT 0.6B v3
+                'mistralai/voxtral-mini-transcribe' => ['cost' => '0.003/min'], // Mistral: Voxtral Mini Transcribe
+                'qwen/qwen3-asr-flash-2026-02-10'   => ['cost' => '0.0021/min'], // Qwen: Qwen3 ASR Flash
+                'google/chirp-3'                    => ['cost' => '0.0016/min'], // Google: Chirp 3
+                'openai/whisper-large-v3-turbo'     => ['cost' => '0.04/min'],  // OpenAI: Whisper Large V3 Turbo
+                'openai/whisper-large-v3'           => ['cost' => '0.0015/min'],  // OpenAI: Whisper Large V3
+                'openai/whisper-1'                  => ['cost' => '0.006/min'],  // OpenAI: Whisper 1
+            ],
+        ],
+        'text' => [
+            'class'          => \AdrielPartners\WpAudioBuddy\Integrations\Providers\OpenRouterProvider::class,
+            'default_model'  => 'openai/gpt-4o-mini',
+            'models'         => [
+                'openai/gpt-4o-mini'         => ['cost_in' => 0.15, 'cost_out' => 0.60],  // GPT-4o Mini
+                'openai/gpt-4o'              => ['cost_in' => 2.50, 'cost_out' => 10.00], // GPT-4o
+                'deepseek/deepseek-chat'     => ['cost_in' => 0.23, 'cost_out' => 0.91],  // DeepSeek V3
+                'deepseek/deepseek-r1'       => ['cost_in' => 0.70, 'cost_out' => 2.50],  // DeepSeek R1
+                'qwen/qwen-2.5-72b-instruct' => ['cost_in' => 0.36, 'cost_out' => 0.40],  // Qwen 2.5 72B
+                'qwen/qwen3-32b'             => ['cost_in' => 0.08, 'cost_out' => 0.28],  // Qwen3 32B
+                'google/gemini-2.0-flash-001'=> ['cost_in' => 0.10, 'cost_out' => 0.40],  // Gemini 2.0 Flash
+                'anthropic/claude-3-haiku'   => ['cost_in' => 0.25, 'cost_out' => 1.25],  // Claude 3 Haiku
+                'anthropic/claude-3-5-sonnet-20241022' => ['cost_in' => 3.00, 'cost_out' => 15.00], // Claude 3.5 Sonnet
+                'moonshotai/kimi-k2'         => ['cost_in' => 0.57, 'cost_out' => 2.30],  // Kimi K2
+            ],
+        ],
     ],
 
     // ─── Anthropic ────────────────────────────────────────────────────────────

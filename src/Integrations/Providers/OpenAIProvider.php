@@ -74,8 +74,21 @@ final class OpenAIProvider implements TranscriptionProviderInterface, TextGenera
             CURLOPT_CONNECTTIMEOUT => 30,
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . $api_key,
+                // Pass through additional headers from provider config (e.g. X-Title for OpenRouter)
             ],
         ]);
+
+        // Apply any additional headers from config (e.g. OpenRouter X-Title).
+        $extra_headers = $config['headers'] ?? [];
+        if (is_array($extra_headers) && ! empty($extra_headers)) {
+            $current_headers = curl_getinfo($ch, CURLOPT_HTTPHEADER) ?: [
+                'Authorization: Bearer ' . $api_key,
+            ];
+            foreach ($extra_headers as $key => $value) {
+                $current_headers[] = "$key: $value";
+            }
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $current_headers);
+        }
 
         $raw = curl_exec($ch);
         $curl_err = curl_error($ch);

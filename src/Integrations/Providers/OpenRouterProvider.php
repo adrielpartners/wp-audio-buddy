@@ -20,9 +20,14 @@ final class OpenRouterProvider implements TranscriptionProviderInterface, TextGe
 {
     public function transcribe(string $file_path, string $mime, array $config): array|\WP_Error
     {
-        // Delegate to OpenAIProvider with OpenRouter-specific config.
+        // OpenRouter requires X-Title and HTTP-Referer on all API calls.
+        $site_url = function_exists('get_site_url') ? get_site_url() : '';
         $config['endpoint'] = $config['endpoint'] ?? 'https://openrouter.ai/api';
         $config['model'] = $config['model'] ?? 'openai/whisper-1';
+        $config['headers'] = [
+            'X-Title' => 'WP Audio Buddy',
+            'HTTP-Referer' => $site_url,
+        ];
 
         $openai = new OpenAIProvider();
         return $openai->transcribe($file_path, $mime, $config);
