@@ -270,12 +270,11 @@
         var op = select.getAttribute('data-operation');
         var rows = document.querySelectorAll('.wpab-provider-settings');
         rows.forEach(function(row) {
-            if (row.classList.contains('wpab-provider-' + slug + '-' + op)) {
-                row.style.display = '';
-            } else if (row.classList.contains('wpab-provider-settings') &&
-                       (row.classList.contains('wpab-provider-') + op).includes('-' + op)) {
-                row.style.display = 'none';
-            }
+            row.style.display = 'none';
+        });
+        var match = document.querySelectorAll('.wpab-provider-settings.wpab-provider-' + slug + '-' + op);
+        match.forEach(function(row) {
+            row.style.display = '';
         });
     }
 
