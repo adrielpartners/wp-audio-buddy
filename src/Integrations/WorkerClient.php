@@ -58,7 +58,7 @@ final class WorkerClient
             'operation' => 'transcribe',
             'audio_url' => $audio_url,
             'callback_url' => rest_url('wpab/v1/worker-callback'),
-            'model' => (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe'),
+            'model' => (string) $this->settings->getProviderConfig('transcription')['model'],
             'chunk_seconds' => max(60, absint($this->settings->get('worker_chunk_seconds', 660))),
             'timestamp' => $timestamp,
         ];

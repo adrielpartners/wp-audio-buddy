@@ -22,9 +22,6 @@ final class SettingsController
 public static function defaults(): array
     {
         return [
-            'api_key' => '',
-            'transcription_model' => 'gpt-4o-mini-transcribe',
-            'excerpt_model' => 'gpt-5-mini',
             'providers' => [],
             'processing_mode' => 'auto',
             'auto_generate_excerpt' => 0,
@@ -130,12 +127,6 @@ public static function defaults(): array
     {
         $current = $this->get_all();
 
-        $api_key = sanitize_text_field($input['api_key'] ?? '');
-        if ('' !== $api_key) {
-            $current['api_key'] = $api_key;
-        }
-        $current['transcription_model'] = sanitize_text_field($input['transcription_model'] ?? $current['transcription_model']);
-        $current['excerpt_model'] = sanitize_text_field($input['excerpt_model'] ?? $current['excerpt_model']);
         $current['auto_transcribe_upload'] = ! empty($input['auto_transcribe_upload']) ? 1 : 0;
         $current['auto_generate_excerpt'] = ! empty($input['auto_generate_excerpt']) ? 1 : 0;
         $current['auto_format_transcript'] = ! empty($input['auto_format_transcript']) ? 1 : 0;
@@ -215,8 +206,6 @@ public static function defaults(): array
         $templates = self::prompt_templates();
 
         // Pre-render helper HTML for the view template.
-        $select_transcription_model = $this->select('transcription_model', ['gpt-4o-mini-transcribe', 'gpt-4o-transcribe', 'whisper-1'], $settings['transcription_model']);
-        $select_excerpt_model = $this->select('excerpt_model', ['gpt-5-nano', 'gpt-5-mini', 'gpt-5.1', 'gpt-5.2'], $settings['excerpt_model']);
         $checkbox_auto_transcribe = $this->checkbox_row('auto_transcribe_upload', 'Auto-transcribe audio on upload (MP3 by default)', $settings);
         $checkbox_auto_excerpt = $this->checkbox_row('auto_generate_excerpt', 'Auto-generate excerpt after transcription', $settings);
         $checkbox_copy_transcript = $this->checkbox_row('enable_copy_transcript', 'Enable "Copy Audio Transcription" button in post editors', $settings);

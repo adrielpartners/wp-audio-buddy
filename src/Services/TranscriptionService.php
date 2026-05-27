@@ -75,11 +75,10 @@ final class TranscriptionService
         $job_id = $job ? (int) $job['id'] : $job_id;
         $this->update_job_status($attachment_id, $job_id, 'running', ['started_at' => current_time('mysql')]);
 
-        $api_key = (string) $this->settings->get('api_key', '');
-        $model = (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe');
+        $config = $this->settings->getProviderConfig('transcription');
         $file_path = get_attached_file($attachment_id);
 
-        if (empty($api_key) || ! $file_path || ! file_exists($file_path)) {
+        if (empty($config['api_key']) || ! $file_path || ! file_exists($file_path)) {
             $this->fail($attachment_id, 'Missing API key or audio file.', $job_id);
             return;
         }
@@ -92,7 +91,6 @@ final class TranscriptionService
         }
 
         if (empty($plan['chunking'])) {
-            $config = $this->settings->getProviderConfig('transcription');
             $provider = ProviderRegistry::getTranscriptionProvider($config['provider']);
             if ($provider === null) {
                 $this->fail($attachment_id, 'No transcription provider available for: ' . ($config['provider'] ?? 'none'), $job_id ?? null);
@@ -104,7 +102,7 @@ final class TranscriptionService
                 return;
             }
 
-            $this->save_final_transcript($attachment_id, trim((string) $response['text']), $model, null, $job_id);
+            $this->save_final_transcript($attachment_id, trim((string) $response['text']), $config['model'], null, $job_id);
             return;
         }
 
@@ -144,9 +142,6 @@ final class TranscriptionService
         }
 
         update_post_meta($attachment_id, Meta::chunk_status_key($chunk_index), 'running');
-
-        $api_key = (string) $this->settings->get('api_key', '');
-        $model = (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe');
 
         $config = $this->settings->getProviderConfig('transcription');
         $provider = ProviderRegistry::getTranscriptionProvider($config['provider']);
@@ -213,7 +208,8 @@ final class TranscriptionService
             return;
         }
 
-        $model = (string) $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe');
+        $config = $this->settings->getProviderConfig('transcription');
+        $model = $config['model'];
         $this->save_final_transcript($attachment_id, $combined, $model, null, $job_id);
         $this->chunker->cleanup($manifest);
         Meta::clear_chunk_meta($attachment_id);

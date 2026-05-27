@@ -28,6 +28,7 @@ public function __construct(
 
     public function handle(int $attachment_id, ?int $job_id = null): void
     {
+        $config = $this->settings->getProviderConfig('excerpt');
         $transcript_repo = new TranscriptRepository();
         $latest_transcript = $transcript_repo->get_latest_for_attachment($attachment_id);
         $transcript = null !== $latest_transcript
@@ -64,7 +65,7 @@ public function __construct(
         update_post_meta($attachment_id, Meta::EXCERPT, $response);
         update_post_meta($attachment_id, Meta::EXCERPT_ERROR, '');
         update_post_meta($attachment_id, Meta::EXCERPT_STATUS, 'done');
-        update_post_meta($attachment_id, Meta::EXCERPT_MODEL, $this->settings->get('excerpt_model'));
+        update_post_meta($attachment_id, Meta::EXCERPT_MODEL, $config['model']);
         update_post_meta($attachment_id, Meta::EXCERPT_PROMPT_TYPE, $prompt_type);
         update_post_meta($attachment_id, Meta::EXCERPT_PROMPT_CUSTOM, $template);
         update_post_meta($attachment_id, Meta::EXCERPT_UPDATED, current_time('mysql'));
@@ -76,7 +77,7 @@ public function __construct(
             'prompt_type' => $prompt_type,
             'output_text' => $response,
             'metadata_json' => wp_json_encode([
-                'model' => $this->settings->get('excerpt_model'),
+                'model' => $config['model'],
                 'max_words' => $max_words,
             ]),
         ]);
@@ -179,12 +180,13 @@ public function __construct(
 
     private function responses_api(string $input, int $max_words, mixed $temperature = null): string|\WP_Error
     {
-        $api_key = (string) $this->settings->get('api_key', '');
+        $config = $this->settings->getProviderConfig('excerpt');
+        $api_key = $config['api_key'];
         if ('' === $api_key) {
             return new \WP_Error(OpenAIProvider::ERROR_OPENAI_AUTH, 'OpenAI API key is missing.');
         }
 
-        $model = (string) $this->settings->get('excerpt_model', 'gpt-5-mini');
+        $model = $config['model'];
         $payload = [
             'model' => $model,
             'instructions' => 'Output plain text only. Maximum ' . $max_words . ' words.',

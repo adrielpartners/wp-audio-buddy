@@ -164,7 +164,7 @@ final class WorkerCallbackController
             return new \WP_REST_Response(['error' => 'missing_transcript'], 400);
         }
 
-        $model = sanitize_text_field((string) ($data['model'] ?? $this->settings->get('transcription_model', 'gpt-4o-mini-transcribe')));
+        $model = sanitize_text_field((string) ($data['model'] ?? $this->settings->getProviderConfig('transcription')['model']));
         $seconds = isset($data['seconds']) ? (int) $data['seconds'] : null;
 
         $this->transcription->save_final_transcript($attachment_id, $transcript, $model, $seconds, $job_id);
