@@ -64,6 +64,14 @@ final class TranscriptionService
 
     public function handle(int $attachment_id, ?int $job_id = null): void
     {
+        // Increase time limit for long-running transcription jobs.
+        if (function_exists('set_time_limit')) {
+            set_time_limit(600);
+        }
+        if (function_exists('as_set_time_limit')) {
+            as_set_time_limit(600);
+        }
+
         if (! Meta::is_audio_attachment($attachment_id)) {
             return;
         }

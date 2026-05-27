@@ -28,6 +28,7 @@
                     $docs_url = $info['docs_url'] ?? '';
                     $has_key = ! empty($settings['providers']['transcription']['keys'][$slug]);
                     $key_placeholder = $has_key ? __('Key saved — enter new to replace', 'wp-audio-buddy') : __('Enter API key', 'wp-audio-buddy');
+                    $saved_model = $settings['providers']['transcription']['models'][$slug] ?? '';
                 ?>
                 <div class="wpab-provider-settings wpab-provider-<?php echo esc_attr($slug); ?>-transcription" <?php echo $is_active ? '' : 'style="display:none"'; ?>>
                     <p>
@@ -42,7 +43,7 @@
                         <label><?php esc_html_e('Model', 'wp-audio-buddy'); ?>:
                             <select class="wpab-provider-model" name="wpab_settings[providers][transcription][models][<?php echo esc_attr($slug); ?>]">
                                 <?php foreach ($models as $m_slug => $m_label) : ?>
-                                    <option value="<?php echo esc_attr($m_slug); ?>"><?php echo esc_html(is_string($m_label) ? $m_label : $m_slug); ?></option>
+                                    <option value="<?php echo esc_attr($m_slug); ?>" <?php selected($m_slug, $saved_model); ?>><?php echo esc_html(is_string($m_label) ? $m_label : $m_slug); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </label>
@@ -79,6 +80,7 @@
                     $docs_url = $info['docs_url'] ?? '';
                     $has_key = ! empty($settings['providers']['excerpt']['keys'][$slug]);
                     $key_placeholder = $has_key ? __('Key saved — enter new to replace', 'wp-audio-buddy') : __('Enter API key', 'wp-audio-buddy');
+                    $saved_model = $settings['providers']['excerpt']['models'][$slug] ?? '';
                 ?>
                 <div class="wpab-provider-settings wpab-provider-<?php echo esc_attr($slug); ?>-excerpt" <?php echo $is_active ? '' : 'style="display:none"'; ?>>
                     <p>
@@ -93,7 +95,7 @@
                         <label><?php esc_html_e('Model', 'wp-audio-buddy'); ?>:
                             <select class="wpab-provider-model" name="wpab_settings[providers][excerpt][models][<?php echo esc_attr($slug); ?>]">
                                 <?php foreach ($models as $m_slug => $m_label) : ?>
-                                    <option value="<?php echo esc_attr($m_slug); ?>"><?php echo esc_html(is_string($m_label) ? $m_label : $m_slug); ?></option>
+                                    <option value="<?php echo esc_attr($m_slug); ?>" <?php selected($m_slug, $saved_model); ?>><?php echo esc_html(is_string($m_label) ? $m_label : $m_slug); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </label>
