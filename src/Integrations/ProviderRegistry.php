@@ -55,7 +55,7 @@ final class ProviderRegistry
                 'llama-3.3-70b-versatile' => 'Llama 3.3 70B ($0.59/M)',
                 'llama-3.1-8b-instant' => 'Llama 3.1 8B ($0.05/M)',
             ],
-            'endpoint' => 'https://api.groq.com/openai/v1',
+            'endpoint' => 'https://api.groq.com/openai',
             'docs_url' => 'https://console.groq.com/keys',
         ],
         'openrouter' => [
@@ -74,7 +74,7 @@ final class ProviderRegistry
                 'anthropic/claude-3-haiku' => 'Claude 3 Haiku ($0.25/M)',
                 'moonshot/moonshot-v1-8k' => 'Moonshot v1 8K ($0.50/M)',
             ],
-            'endpoint' => 'https://openrouter.ai/api/v1',
+            'endpoint' => 'https://openrouter.ai/api',
             'docs_url' => 'https://openrouter.ai/keys',
         ],
         'anthropic' => [
