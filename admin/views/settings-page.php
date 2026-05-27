@@ -11,7 +11,7 @@
             <tr>
                 <th><label for="wpab_transcription_provider"><?php esc_html_e('Transcription Provider', 'wp-audio-buddy'); ?></label></th>
                 <td>
-                    <select id="wpab_transcription_provider" class="wpab-provider-select" data-operation="transcription" name="wpab_settings[providers][transcription][provider]">
+                    <select id="wpab_transcription_provider" class="wpab-provider-select" data-operation="transcription" name="wpab_settings[providers][transcription][provider]" onchange="wpabToggleProvider(this, 'transcription')">
                         <?php foreach ($transcription_providers as $slug => $label) : ?>
                             <option value="<?php echo esc_attr($slug); ?>" <?php selected($slug, $transcription_config['provider']); ?>><?php echo esc_html($label); ?></option>
                         <?php endforeach; ?>
@@ -62,7 +62,7 @@
             <tr>
                 <th><label for="wpab_excerpt_provider"><?php esc_html_e('Excerpt Provider', 'wp-audio-buddy'); ?></label></th>
                 <td>
-                    <select id="wpab_excerpt_provider" class="wpab-provider-select" data-operation="excerpt" name="wpab_settings[providers][excerpt][provider]">
+                    <select id="wpab_excerpt_provider" class="wpab-provider-select" data-operation="excerpt" name="wpab_settings[providers][excerpt][provider]" onchange="wpabToggleProvider(this, 'excerpt')">
                         <?php foreach ($excerpt_providers as $slug => $label) : ?>
                             <option value="<?php echo esc_attr($slug); ?>" <?php selected($slug, $excerpt_config['provider']); ?>><?php echo esc_html($label); ?></option>
                         <?php endforeach; ?>
@@ -262,24 +262,35 @@
 });
     })();
 
-    // Provider selector: show/hide the corresponding settings rows
-    var providerSelectors = document.querySelectorAll('.wpab-provider-select');
+    // Simple provider toggle: hide all provider rows, show matching ones
+function wpabToggleProvider(select, operation) {
+    var slug = select.value;
+    // Hide all provider rows
+    var all = document.querySelectorAll('.wpab-provider-settings');
+    for (var i = 0; i < all.length; i++) {
+        all[i].style.display = 'none';
+    }
+    // Show matching rows
+    var match = document.querySelectorAll('.wpab-provider-' + slug + '-' + operation);
+    for (var i = 0; i < match.length; i++) {
+        match[i].style.display = '';
+    }
+}
 
-    function updateProviderVisibility(select) {
-        var slug = select.value;
-        var op = select.getAttribute('data-operation');
-        var rows = document.querySelectorAll('.wpab-provider-settings');
-        rows.forEach(function(row) {
-            row.style.display = 'none';
-        });
-        var match = document.querySelectorAll('.wpab-provider-settings.wpab-provider-' + slug + '-' + op);
-        match.forEach(function(row) {
-            row.style.display = '';
+// Run on page load
+(function(){
+    var selects = document.querySelectorAll('.wpab-provider-select');
+    for (var i = 0; i < selects.length; i++) {
+        wpabToggleProvider(selects[i], selects[i].getAttribute('data-operation'));
+    }
+    // Keep existing excerpt template toggle
+    var templates = <?php echo wp_json_encode($templates); ?>;
+    var type = document.getElementById('wpab_excerpt_type');
+    var textarea = document.getElementById('wpab_excerpt_prompt_text');
+    if (type && textarea) {
+        type.addEventListener('change', function(){
+            textarea.value = templates[type.value] || templates.custom;
         });
     }
-
-    providerSelectors.forEach(function(sel) {
-        sel.addEventListener('change', function() { updateProviderVisibility(this); });
-        updateProviderVisibility(sel);
-    });
-})();
+ })();
+</script>
