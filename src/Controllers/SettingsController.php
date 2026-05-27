@@ -86,38 +86,44 @@ public static function defaults(): array
     {
         $all = $this->get_all();
         $providers = $all['providers'] ?? [];
-        $config = $providers[$operation] ?? [];
-        $provider_slug = $config['provider'] ?? '';
+        $op_config = $providers[$operation] ?? [];
+        $provider_slug = $op_config['provider'] ?? '';
 
-        // Fall back to legacy OpenAI settings if provider config is empty.
-        if (empty($config['api_key']) && ! empty($all['api_key'])) {
+        // Read per-provider values.
+        $api_key = $op_config['keys'][$provider_slug] ?? '';
+        $model = $op_config['models'][$provider_slug] ?? '';
+        $endpoint = $op_config['endpoints'][$provider_slug] ?? '';
+
+        // Fall back to legacy OpenAI settings if no per-provider key is set.
+        if (empty($api_key) && ! empty($all['api_key'])) {
             $provider_slug = 'openai';
-            $config = [
-                'provider' => 'openai',
-                'api_key' => $all['api_key'],
-                'model' => $operation === 'transcription'
-                    ? ($all['transcription_model'] ?? 'gpt-4o-mini-transcribe')
-                    : ($all['excerpt_model'] ?? 'gpt-5-mini'),
-                'endpoint' => 'https://api.openai.com',
-            ];
+            $api_key = $all['api_key'];
+            $model = $operation === 'transcription'
+                ? ($all['transcription_model'] ?? 'gpt-4o-mini-transcribe')
+                : ($all['excerpt_model'] ?? 'gpt-5-mini');
+            $endpoint = 'https://api.openai.com';
         }
 
-        // Set default endpoint if not already provided.
-        if (empty($config['endpoint'])) {
-            $config['endpoint'] = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getEndpoint($provider_slug);
+        // Set default endpoint if not provided.
+        if (empty($endpoint)) {
+            $endpoint = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getEndpoint($provider_slug);
         }
 
         // Set default model if not provided.
-        if (empty($config['model']) && $provider_slug) {
+        if (empty($model) && $provider_slug) {
             $info = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getProviderInfo($provider_slug);
             if ($info) {
                 $key = $operation === 'transcription' ? 'default_model_transcription' : 'default_model_text';
-                $config['model'] = $info[$key] ?? '';
+                $model = $info[$key] ?? '';
             }
         }
 
-        $config['provider'] = $provider_slug;
-        return $config;
+        return [
+            'provider' => $provider_slug,
+            'api_key' => $api_key,
+            'model' => $model,
+            'endpoint' => $endpoint,
+        ];
     }
 
     public function sanitize(array $input): array
@@ -160,18 +166,37 @@ public static function defaults(): array
 
         $current['delete_data_on_uninstall'] = ! empty($input['delete_data_on_uninstall']) ? 1 : 0;
 
-        // Provider settings.
+        // Provider settings (per-provider keys, models, endpoints).
         $providers = $input['providers'] ?? [];
         if (is_array($providers)) {
             foreach (['transcription', 'excerpt'] as $op) {
                 $p = $providers[$op] ?? [];
                 $slug = sanitize_key($p['provider'] ?? '');
-                $current['providers'][$op] = [
-                    'provider' => $slug,
-                    'api_key' => sanitize_text_field($p['api_key'] ?? ''),
-                    'model' => sanitize_text_field($p['model'] ?? ''),
-                    'endpoint' => ! empty($p['endpoint']) ? esc_url_raw($p['endpoint']) : '',
-                ];
+                $current['providers'][$op]['provider'] = $slug;
+
+                // Per-provider key storage.
+                $keys = $p['keys'] ?? [];
+                if (is_array($keys)) {
+                    foreach ($keys as $k_slug => $k_val) {
+                        $k_slug = sanitize_key($k_slug);
+                        $val = sanitize_text_field($k_val);
+                        if ('' !== $val) {
+                            $current['providers'][$op]['keys'][$k_slug] = $val;
+                        }
+                    }
+                }
+
+                // Per-provider model selection.
+                $models = $p['models'] ?? [];
+                if (is_array($models) && isset($models[$slug])) {
+                    $current['providers'][$op]['models'][$slug] = sanitize_text_field($models[$slug]);
+                }
+
+                // Per-provider endpoint.
+                $endpoints = $p['endpoints'] ?? [];
+                if (is_array($endpoints) && isset($endpoints[$slug]) && ! empty($endpoints[$slug])) {
+                    $current['providers'][$op]['endpoints'][$slug] = esc_url_raw($endpoints[$slug]);
+                }
             }
         }
 
@@ -203,26 +228,6 @@ public static function defaults(): array
 
         $transcription_config = $this->getProviderConfig('transcription');
         $excerpt_config = $this->getProviderConfig('excerpt');
-
-        $transcription_models = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getModels($transcription_config['provider'], 'transcription');
-        $excerpt_models = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getModels($excerpt_config['provider'], 'text');
-
-        $provider_info_js = [];
-        foreach (['openai', 'groq', 'openrouter', 'anthropic', 'deepseek', 'gemini', 'deepgram'] as $slug) {
-            $info = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getProviderInfo($slug);
-            if ($info) {
-                $provider_info_js[$slug] = [
-                    'label' => $info['label'],
-                    'endpoint' => $info['endpoint'] ?? '',
-                    'docs_url' => $info['docs_url'] ?? '',
-                    'models_transcription' => $info['models_transcription'] ?? [],
-                    'models_text' => $info['models_text'] ?? [],
-                    'supports_transcription' => $info['transcription'] !== null,
-                    'supports_text' => $info['text'] !== null,
-                    'is_openai_compat' => \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::isOpenAICompatible($slug),
-                ];
-            }
-        }
 
         $option_key = self::OPTION_KEY;
         include WPAB_PATH . 'admin/views/settings-page.php';
