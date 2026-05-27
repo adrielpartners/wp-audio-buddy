@@ -243,12 +243,14 @@
     // Simple provider toggle: hide all provider rows, show matching ones
 function wpabToggleProvider(select, operation) {
     var slug = select.value;
-    // Hide all provider rows
+    // Hide all provider rows for THIS operation only
     var all = document.querySelectorAll('.wpab-provider-settings');
     for (var i = 0; i < all.length; i++) {
-        all[i].style.display = 'none';
+        if (all[i].className.indexOf('-' + operation) !== -1) {
+            all[i].style.display = 'none';
+        }
     }
-    // Show matching rows
+    // Show matching rows for THIS operation
     var match = document.querySelectorAll('.wpab-provider-' + slug + '-' + operation);
     for (var i = 0; i < match.length; i++) {
         match[i].style.display = '';
