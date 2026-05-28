@@ -19,6 +19,19 @@ define('WPAB_URL', plugin_dir_url(__FILE__));
 $autoload = WPAB_PATH . 'vendor/autoload.php';
 if (file_exists($autoload)) {
     require_once $autoload;
+} else {
+    spl_autoload_register(static function (string $class): void {
+        $prefix = 'AdrielPartners\\WpAudioBuddy\\';
+        if (! str_starts_with($class, $prefix)) {
+            return;
+        }
+
+        $relative = str_replace('\\', '/', substr($class, strlen($prefix)));
+        $file = WPAB_PATH . 'src/' . $relative . '.php';
+        if (file_exists($file)) {
+            require_once $file;
+        }
+    });
 }
 
 \AdrielPartners\WpAudioBuddy\Plugin::instance();
