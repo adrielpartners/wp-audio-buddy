@@ -117,8 +117,5 @@ final class Plugin
 
         $this->queue->register_handlers($this->transcription_service, $this->excerpt_service);
 
-        if (is_admin() && isset($_GET['page']) && str_starts_with(sanitize_key($_GET['page']), 'wpab')) {
-            $this->logger->info('plugin_boot', 'WP Audio Buddy booted.');
-        }
     }
 }
