@@ -1,4 +1,27 @@
+# WordPress plugin artifacts
 vendor/
+plugin/vendor/
+
+# Python artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+worker/.venv/
+worker/.venv*/
+worker/venv/
+
+# Environment & secrets
+.env
+worker/.env
+
+# Worker data/output
+worker/work/
+
+# Build output
+dist/
+
+# OS files
 .DS_Store
+
+# Logs
 *.log
-docs/
