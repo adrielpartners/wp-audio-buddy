@@ -104,7 +104,8 @@ final class WorkerClient
         $code = wp_remote_retrieve_response_code($response);
         if ($code >= 400) {
             $body = json_decode((string) wp_remote_retrieve_body($response), true);
-            $err = (string) ($body['error'] ?? 'Worker rejected the request.');
+            $detail = $body['detail'] ?? [];
+            $err = is_array($detail) ? ($detail['message'] ?? 'Worker rejected the request.') : (string) ($body['error'] ?? 'Worker rejected the request.');
             $this->logger->error('worker_dispatch', 'Worker rejected request: HTTP ' . $code . ' - ' . $err, $attachment_id);
             return new \WP_Error('WORKER_REJECTED', 'Worker rejected request: ' . $err);
         }

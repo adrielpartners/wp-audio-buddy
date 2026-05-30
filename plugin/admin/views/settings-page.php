@@ -164,7 +164,7 @@
                 <th><label for="wpab_worker_site_id"><?php esc_html_e('Worker Site ID', 'wp-audio-buddy'); ?></label></th>
                 <td>
                     <input type="text" id="wpab_worker_site_id" class="regular-text" name="wpab_settings[worker_site_id]" value="<?php echo esc_attr($settings['worker_site_id']); ?>" placeholder="e.g. site-1">
-                    <p class="description"><?php esc_html_e('Optional identifier sent with each job so the worker can distinguish between WordPress sites.', 'wp-audio-buddy'); ?></p>
+                    <p class="description"><?php esc_html_e('Optional identifier sent with each job so the worker can distinguish between WordPress sites. Only letters and dashes, no dots allowed.', 'wp-audio-buddy'); ?></p>
                 </td>
             </tr>
             <tr>
