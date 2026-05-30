@@ -12,7 +12,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.wpab-api.rule=Host(`wpab-worker.marketinghero.net`)"
       - "traefik.http.routers.wpab-api.entrypoints=websecure"
-      - "traefik.http.routers.wpab-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wpab-api.tls.certresolver=mytlschallenge"
       - "traefik.http.services.wpab-api.loadbalancer.server.port=8080"
     environment:
       - REDIS_URL=redis://redis:6379
