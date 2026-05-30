@@ -5,9 +5,19 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080
     ports:
       - "8080:8080"
+    networks:
+      - default
+      - traefik_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wpab-api.rule=Host(`wpab-worker.marketinghero.net`)"
+      - "traefik.http.routers.wpab-api.entrypoints=websecure"
+      - "traefik.http.routers.wpab-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wpab-api.loadbalancer.server.port=8080"
     environment:
       - REDIS_URL=redis://redis:6379
       - WPAB_ALLOWED_SITES=${WPAB_ALLOWED_SITES:-}
+      - WPAB_WORKER_PUBLIC_BASE_URL=https://wpab-worker.marketinghero.net
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
@@ -49,6 +59,10 @@ services:
       - WPAB_LOG_LEVEL=${WPAB_LOG_LEVEL:-INFO}
       - WPAB_WORKER_ENV=${WPAB_WORKER_ENV:-development}
     depends_on: []
+
+networks:
+  traefik_proxy:
+    external: true
 
 volumes:
   redis_data:
