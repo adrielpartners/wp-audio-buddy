@@ -2,7 +2,7 @@ services:
   api:
     build: .
     container_name: wpab-api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080
     ports:
       - "8080:8080"
     environment:
@@ -14,9 +14,6 @@ services:
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
       - WPAB_LOG_LEVEL=${WPAB_LOG_LEVEL:-INFO}
       - WPAB_WORKER_ENV=${WPAB_WORKER_ENV:-development}
-    volumes:
-      - .:/app
-      - work_data:/work
     depends_on:
       - redis
 
@@ -33,9 +30,6 @@ services:
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
       - WPAB_LOG_LEVEL=${WPAB_LOG_LEVEL:-INFO}
       - WPAB_WORKER_ENV=${WPAB_WORKER_ENV:-development}
-    volumes:
-      - .:/app
-      - work_data:/work
     depends_on:
       - redis
 
@@ -54,11 +48,7 @@ services:
     environment:
       - WPAB_LOG_LEVEL=${WPAB_LOG_LEVEL:-INFO}
       - WPAB_WORKER_ENV=${WPAB_WORKER_ENV:-development}
-    volumes:
-      - .:/app
-      - work_data:/work
     depends_on: []
 
 volumes:
   redis_data:
-  work_data:
