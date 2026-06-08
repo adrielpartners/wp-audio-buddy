@@ -1,10 +1,9 @@
 """
 OpenRouter transcription provider.
 
-OpenRouter's speech-to-text endpoint accepts JSON with base64-encoded audio,
-not the multipart file upload used by OpenAI and Groq.
+OpenRouter's speech-to-text endpoint at /api/v1/audio/transcriptions
+accepts JSON with base64-encoded audio (not multipart file upload).
 """
-
 import base64
 import random
 import time
@@ -63,6 +62,8 @@ class OpenRouterProvider:
                             'data': audio_data,
                             'format': _audio_format(chunk_path),
                         },
+                        # Requesting English can improve accuracy for EN audio
+                        'language': 'en',
                     },
                     timeout=timeout,
                 )
@@ -103,4 +104,4 @@ class OpenRouterProvider:
 
 def _audio_format(path: Path) -> str:
     suffix = path.suffix.lower().lstrip('.')
-    return suffix if suffix in {'wav', 'mp3', 'flac', 'm4a', 'ogg', 'webm', 'aac'} else 'mp3'
+    return suffix if suffix in {'wav', 'mp3', 'flac', 'm4a', 'ogg', 'webm', 'aac', 'opus'} else 'mp3'
