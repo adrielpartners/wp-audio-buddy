@@ -36,11 +36,19 @@ public static function defaults(): array
             'excerpt_prompt_text' => self::prompt_templates()['informative'],
             'excerpt_max_words' => 100,
             'excerpt_temperature' => 0.2,
+            'format_max_words' => 1500,
+            'format_max_tokens' => 32000,
+            'format_prompt_text' => self::default_format_prompt(),
             'enable_copy_transcript' => 1,
             'enable_copy_excerpt' => 1,
             'editor_post_types' => array_values(get_post_types(['public' => true], 'names')),
             'delete_data_on_uninstall' => 0,
         ];
+    }
+
+    public static function default_format_prompt(): string
+    {
+        return "Format this transcript into readable paragraphs while preserving meaning and wording. Output plain text only. Maximum {{MAX_WORDS}} words.";
     }
 
     public static function prompt_templates(): array
@@ -148,6 +156,9 @@ public static function defaults(): array
         $current['excerpt_prompt_text'] = sanitize_textarea_field($input['excerpt_prompt_text'] ?? self::prompt_templates()[$current['excerpt_type']] ?? '');
         $current['excerpt_max_words'] = max(10, absint($input['excerpt_max_words'] ?? 100));
         $current['excerpt_temperature'] = max(0, min(1, (float) ($input['excerpt_temperature'] ?? 0.2)));
+        $current['format_prompt_text'] = sanitize_textarea_field($input['format_prompt_text'] ?? self::default_format_prompt());
+        $current['format_max_words'] = max(50, absint($input['format_max_words'] ?? 1500));
+        $current['format_max_tokens'] = max(256, absint($input['format_max_tokens'] ?? 32000));
         $current['enable_copy_transcript'] = ! empty($input['enable_copy_transcript']) ? 1 : 0;
         $current['enable_copy_excerpt'] = ! empty($input['enable_copy_excerpt']) ? 1 : 0;
 

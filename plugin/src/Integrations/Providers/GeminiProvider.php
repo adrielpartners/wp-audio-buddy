@@ -35,7 +35,7 @@ final class GeminiProvider implements TextGenerationProviderInterface
                 ],
             ],
             'generationConfig' => [
-                'maxOutputTokens' => 32000,
+                'maxOutputTokens' => (int) ($config['max_tokens'] ?? 32000),
             ],
         ];
 

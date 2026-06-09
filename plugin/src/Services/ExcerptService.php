@@ -176,11 +176,15 @@ public function __construct(
 
     public function format_transcript(string $transcript): string
     {
-        $response = $this->responses_api(
-            "Format this transcript into readable paragraphs while preserving meaning and wording. Output plain text only.\n\n" . $transcript,
-            1500,
-            $this->settings->get('excerpt_temperature', null)
+        $template = (string) $this->settings->get('format_prompt_text', SettingsController::default_format_prompt());
+        $max_words = max(50, absint($this->settings->get('format_max_words', 1500)));
+        $prompt = str_replace(
+            ['{{MAX_WORDS}}', '{{TRANSCRIPT}}'],
+            [(string) $max_words, $transcript],
+            $template
         );
+
+        $response = $this->responses_api($prompt, $max_words);
 
         return is_wp_error($response) ? $transcript : $response;
     }
@@ -194,20 +198,16 @@ public function __construct(
         }
 
         $model = $config['model'];
-        $payload = [
-            'model' => $model,
-            'instructions' => 'Output plain text only. Maximum ' . $max_words . ' words.',
-            'input' => $input,
-        ];
+        $config['max_tokens'] = max(256, absint($this->settings->get('format_max_tokens', 32000)));
 
         if (is_numeric($temperature)) {
-            $payload['temperature'] = (float) $temperature;
+            $config['temperature'] = (float) $temperature;
         }
 
-        $this->logger->info('excerpt', 'Sending excerpt request to OpenAI Responses API.', null, [
+        $this->logger->info('excerpt', 'Sending excerpt request to text generation provider.', null, [
             'model' => $model,
-            'temperature_included' => isset($payload['temperature']),
             'max_words' => $max_words,
+            'max_tokens' => $config['max_tokens'],
         ]);
 
         $provider = \AdrielPartners\WpAudioBuddy\Integrations\ProviderRegistry::getTextGenerationProvider($config['provider']);
@@ -216,9 +216,9 @@ public function __construct(
         }
 
         $response = $provider->generate($input, $config);
-        if (is_wp_error($response) && isset($payload['temperature'])) {
+        if (is_wp_error($response) && isset($config['temperature'])) {
             // Retry without temperature if the model doesn't support it.
-            $config['temperature'] = null;
+            unset($config['temperature']);
             $response = $provider->generate($input, $config);
         }
 

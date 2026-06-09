@@ -185,6 +185,23 @@
                     <p class="description"><?php esc_html_e('Uses more tokens from your excerpt model', 'wp-audio-buddy'); ?></p>
                 </td>
             </tr>
+            <tr>
+                <th><?php esc_html_e('Format writing prompt', 'wp-audio-buddy'); ?></th>
+                <td>
+                    <textarea id="wpab_format_prompt_text" class="large-text code" rows="6" name="wpab_settings[format_prompt_text]"><?php echo esc_textarea($settings['format_prompt_text']); ?></textarea>
+                    <p class="description"><?php esc_html_e('Template supports {{MAX_WORDS}} and {{TRANSCRIPT}}. Used when auto-format is enabled.', 'wp-audio-buddy'); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><?php esc_html_e('Format max words', 'wp-audio-buddy'); ?></th>
+                <td><input type="number" min="50" step="1" name="wpab_settings[format_max_words]" value="<?php echo esc_attr((string) $settings['format_max_words']); ?>">
+                <p class="description"><?php esc_html_e('Maximum words for the formatted transcript output. Default: 1500.', 'wp-audio-buddy'); ?></p></td>
+            </tr>
+            <tr>
+                <th><?php esc_html_e('Format max tokens', 'wp-audio-buddy'); ?></th>
+                <td><input type="number" min="256" step="1" name="wpab_settings[format_max_tokens]" value="<?php echo esc_attr((string) $settings['format_max_tokens']); ?>">
+                <p class="description"><?php esc_html_e('Maximum tokens the LLM can use for formatting response. Default: 32000.', 'wp-audio-buddy'); ?></p></td>
+            </tr>
 
             <tr><th colspan="2"><h2><?php esc_html_e('Excerpt Defaults', 'wp-audio-buddy'); ?></h2></th></tr>
             <tr>
