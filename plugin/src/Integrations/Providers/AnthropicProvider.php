@@ -20,7 +20,7 @@ final class AnthropicProvider implements TextGenerationProviderInterface
         $api_key = (string) ($config['api_key'] ?? '');
         $model = (string) ($config['model'] ?? 'claude-3-haiku-20240307');
         $endpoint = rtrim((string) ($config['endpoint'] ?? 'https://api.anthropic.com'), '/');
-        $max_tokens = (int) ($config['max_tokens'] ?? 1500);
+        $max_tokens = (int) ($config['max_tokens'] ?? 32000);
 
         if ('' === $api_key) {
             return new \WP_Error('AUTH_FAILED', 'Anthropic API key is missing.');

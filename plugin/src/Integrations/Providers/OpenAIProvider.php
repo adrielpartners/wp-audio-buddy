@@ -119,7 +119,7 @@ final class OpenAIProvider implements TranscriptionProviderInterface, TextGenera
             'messages' => [
                 ['role' => 'user', 'content' => $prompt],
             ],
-            'max_tokens' => 1500,
+            'max_tokens' => 32000,
         ];
 
         if ($temperature !== null) {
