@@ -176,17 +176,8 @@ public function __construct(
 
     public function format_transcript(string $transcript): string
     {
-        $template = (string) $this->settings->get('format_prompt_text', SettingsController::default_format_prompt());
-        $max_words = max(50, absint($this->settings->get('format_max_words', 1500)));
-        $prompt = str_replace(
-            ['{{MAX_WORDS}}', '{{TRANSCRIPT}}'],
-            [(string) $max_words, $transcript],
-            $template
-        );
-
-        $response = $this->responses_api($prompt, $max_words);
-
-        return is_wp_error($response) ? $transcript : $response;
+        $formatter = new ParagraphFormatter();
+        return $formatter->format($transcript);
     }
 
     private function responses_api(string $input, int $max_words, mixed $temperature = null): string|\WP_Error
