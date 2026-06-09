@@ -55,6 +55,7 @@ final class EditorController
                 'title' => get_the_title($attachment),
                 'transcript' => wpab_get_transcript((int) $attachment->ID),
                 'excerpt' => wpab_get_excerpt((int) $attachment->ID),
+                'topics' => wpab_get_topics((int) $attachment->ID),
             ];
         }
 
@@ -76,6 +77,7 @@ final class EditorController
         if ($can_copy_excerpt) {
             echo '<p><button type="button" class="button wpab-copy-btn" data-type="excerpt">' . esc_html__('Copy Audio Excerpt', 'wp-audio-buddy') . '</button></p>';
         }
+        echo '<p><button type="button" class="button wpab-copy-btn" data-type="topics">' . esc_html__('Copy Topic Tags', 'wp-audio-buddy') . '</button></p>';
 
         echo '<p class="description wpab-copy-message" aria-live="polite"></p>';
         echo '</div>';
@@ -96,7 +98,7 @@ final class EditorController
                             const item = current();
                             if(!item){ msg.textContent = 'No audio found.'; return; }
                             const type = btn.dataset.type;
-                            const text = type === 'excerpt' ? item.excerpt : item.transcript;
+                            const text = type === 'excerpt' ? item.excerpt : type === 'topics' ? item.topics : item.transcript;
                             if(!text){ msg.textContent = 'Nothing available to copy yet.'; return; }
                             try {
                                 await navigator.clipboard.writeText(text);

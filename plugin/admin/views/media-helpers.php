@@ -111,6 +111,7 @@ function wpab_copy_buttons_html(int $attachment_id): string
 {
     $has_transcript = '' !== trim((string) get_post_meta($attachment_id, Meta::TRANSCRIPT, true));
     $has_excerpt = '' !== trim((string) get_post_meta($attachment_id, Meta::EXCERPT, true));
+    $has_topics = '' !== trim((string) get_post_meta($attachment_id, Meta::TOPICS, true));
 
     $html = '<div class="wpab-copy-area">';
 
@@ -121,10 +122,15 @@ function wpab_copy_buttons_html(int $attachment_id): string
 
     if ($has_excerpt) {
         $html .= '<button type="button" class="button wpab-copy-btn" data-attachment="' . esc_attr((string) $attachment_id) . '" data-field="' . esc_attr(Meta::EXCERPT) . '">'
-            . esc_html__('Copy Excerpt', 'wp-audio-buddy') . '</button>';
+            . esc_html__('Copy Excerpt', 'wp-audio-buddy') . '</button> ';
     }
 
-    if (! $has_transcript && ! $has_excerpt) {
+    if ($has_topics) {
+        $html .= '<button type="button" class="button wpab-copy-btn" data-attachment="' . esc_attr((string) $attachment_id) . '" data-field="' . esc_attr(Meta::TOPICS) . '">'
+            . esc_html__('Copy Topic Tags', 'wp-audio-buddy') . '</button>';
+    }
+
+    if (! $has_transcript && ! $has_excerpt && ! $has_topics) {
         $html .= '<span class="description">' . esc_html__('Generate a transcript or excerpt first.', 'wp-audio-buddy') . '</span>';
     }
 
@@ -159,6 +165,35 @@ function wpab_copy_buttons_html(int $attachment_id): string
 })();
 </script>
 JS;
+
+    return $html;
+}
+
+/**
+ * Build metadata HTML shown below the topics textarea.
+ */
+function wpab_topics_meta_html(int $attachment_id): string
+{
+    $parts = [];
+
+    $model = (string) get_post_meta($attachment_id, Meta::TOPICS_MODEL, true);
+    if ('' !== $model) {
+        $parts[] = sprintf(
+            '<span class="wpab-meta-item">Model: %s</span>',
+            esc_html($model)
+        );
+    }
+
+    $updated = (string) get_post_meta($attachment_id, Meta::TOPICS_UPDATED, true);
+    if ('' !== $updated) {
+        $parts[] = sprintf(
+            '<span class="wpab-meta-item">Generated: %s</span>',
+            esc_html($updated)
+        );
+    }
+
+    $html = '<div class="wpab-meta">' . (empty($parts) ? '' : implode(' &middot; ', $parts)) . '</div>';
+    $html .= '<p class="description">' . esc_html__('Editable SEO topic tags stored on this attachment.', 'wp-audio-buddy') . '</p>';
 
     return $html;
 }

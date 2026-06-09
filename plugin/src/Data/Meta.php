@@ -30,6 +30,12 @@ final class Meta
     public const EXCERPT_PROMPT_CUSTOM = 'wpab_excerpt_prompt_custom';
     public const EXCERPT_UPDATED = 'wpab_excerpt_updated';
 
+    public const TOPICS = 'wpab_topics';
+    public const TOPICS_STATUS = 'wpab_topics_status';
+    public const TOPICS_ERROR = 'wpab_topics_error';
+    public const TOPICS_MODEL = 'wpab_topics_model';
+    public const TOPICS_UPDATED = 'wpab_topics_updated';
+
     public static function is_audio_attachment(int $attachment_id): bool
     {
         return str_starts_with((string) get_post_mime_type($attachment_id), 'audio/');
@@ -43,6 +49,11 @@ final class Meta
     public static function excerpt_status(int $attachment_id): string
     {
         return (string) get_post_meta($attachment_id, self::EXCERPT_STATUS, true) ?: 'none';
+    }
+
+    public static function topics_status(int $attachment_id): string
+    {
+        return (string) get_post_meta($attachment_id, self::TOPICS_STATUS, true) ?: 'none';
     }
 
     public static function has_transcript(int $attachment_id): bool

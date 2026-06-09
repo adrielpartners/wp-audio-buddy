@@ -32,6 +32,7 @@ final class QueueService
         add_action('wpab_transcribe_chunk', [$transcription, 'handle_chunk'], 10, 3);
         add_action('wpab_finalize_transcription', [$transcription, 'finalize_chunked_transcript'], 10, 2);
         add_action('wpab_generate_excerpt', [$excerpt, 'handle'], 10, 2);
+        add_action('wpab_generate_topics', [$excerpt, 'handle_topics'], 10, 1);
     }
 
     public function enqueue_transcription(int $attachment_id, string $source = 'manual'): void
@@ -106,6 +107,21 @@ final class QueueService
     public function enqueue_existing_excerpt(int $attachment_id, int $job_id): void
     {
         $this->enqueue('wpab_generate_excerpt', [$attachment_id, $job_id]);
+    }
+
+    public function enqueue_topics(int $attachment_id): void
+    {
+        $transcript = (string) get_post_meta($attachment_id, Meta::TRANSCRIPT, true);
+        if ('' === trim($transcript)) {
+            return;
+        }
+
+        if ('done' === Meta::topics_status($attachment_id)) {
+            return;
+        }
+
+        update_post_meta($attachment_id, Meta::TOPICS_STATUS, 'queued');
+        $this->enqueue('wpab_generate_topics', [$attachment_id]);
     }
 
     private function should_use_worker(int $attachment_id): bool|\WP_Error

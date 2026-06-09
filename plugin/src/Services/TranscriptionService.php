@@ -268,6 +268,10 @@ final class TranscriptionService
         if ($this->settings->get('auto_generate_excerpt')) {
             $this->queue->enqueue_excerpt($attachment_id, 'auto');
         }
+
+        if ($this->settings->get('auto_generate_excerpt')) {
+            $this->queue->enqueue_topics($attachment_id);
+        }
     }
 
     /**

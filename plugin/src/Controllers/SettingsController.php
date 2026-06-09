@@ -39,11 +39,17 @@ public static function defaults(): array
             'format_max_words' => 1500,
             'format_max_tokens' => 32000,
             'format_prompt_text' => self::default_format_prompt(),
+            'topics_prompt_text' => self::default_topics_prompt(),
             'enable_copy_transcript' => 1,
             'enable_copy_excerpt' => 1,
             'editor_post_types' => array_values(get_post_types(['public' => true], 'names')),
             'delete_data_on_uninstall' => 0,
         ];
+    }
+
+    public static function default_topics_prompt(): string
+    {
+        return "Generate 5-10 relevant topic tags for SEO based on this transcript. Output only a comma-separated list of tags. Do not number them. Do not add explanations or headings.";
     }
 
     public static function default_format_prompt(): string
@@ -159,6 +165,7 @@ public static function defaults(): array
         $current['format_prompt_text'] = sanitize_textarea_field($input['format_prompt_text'] ?? self::default_format_prompt());
         $current['format_max_words'] = max(50, absint($input['format_max_words'] ?? 1500));
         $current['format_max_tokens'] = max(256, absint($input['format_max_tokens'] ?? 32000));
+        $current['topics_prompt_text'] = sanitize_textarea_field($input['topics_prompt_text'] ?? self::default_topics_prompt());
         $current['enable_copy_transcript'] = ! empty($input['enable_copy_transcript']) ? 1 : 0;
         $current['enable_copy_excerpt'] = ! empty($input['enable_copy_excerpt']) ? 1 : 0;
 

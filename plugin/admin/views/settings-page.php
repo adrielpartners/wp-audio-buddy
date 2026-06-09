@@ -230,6 +230,15 @@
                 <td><input type="number" min="0" max="1" step="0.1" name="wpab_settings[excerpt_temperature]" value="<?php echo esc_attr((string) $settings['excerpt_temperature']); ?>"></td>
             </tr>
 
+            <tr><th colspan="2"><h2><?php esc_html_e('Topic Tags', 'wp-audio-buddy'); ?></h2></th></tr>
+            <tr>
+                <th><?php esc_html_e('Topic generation prompt', 'wp-audio-buddy'); ?></th>
+                <td>
+                    <textarea id="wpab_topics_prompt_text" class="large-text code" rows="6" name="wpab_settings[topics_prompt_text]"><?php echo esc_textarea($settings['topics_prompt_text']); ?></textarea>
+                    <p class="description"><?php esc_html_e('Prompt used to extract SEO topic tags from transcripts. {{TRANSCRIPT}} is replaced with the full transcript.', 'wp-audio-buddy'); ?></p>
+                </td>
+            </tr>
+
             <tr><th colspan="2"><h2><?php esc_html_e('Editor Integration', 'wp-audio-buddy'); ?></h2></th></tr>
             <?php echo $checkbox_copy_transcript; ?>
             <?php echo $checkbox_copy_excerpt; ?>

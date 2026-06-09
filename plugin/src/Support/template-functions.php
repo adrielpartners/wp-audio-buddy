@@ -59,6 +59,21 @@ function wpab_get_excerpt(int $attachment_id): string
 }
 
 /**
+ * Get the topic tags for an audio attachment.
+ *
+ * @param int $attachment_id Attachment ID.
+ * @return string The topic tags, or empty string if not found.
+ */
+function wpab_get_topics(int $attachment_id): string
+{
+    if (! $attachment_id || ! Meta::is_audio_attachment($attachment_id)) {
+        return '';
+    }
+
+    return (string) get_post_meta($attachment_id, Meta::TOPICS, true);
+}
+
+/**
  * Render the transcript for an audio attachment. Returns escaped HTML.
  *
  * @param int $attachment_id Attachment ID.

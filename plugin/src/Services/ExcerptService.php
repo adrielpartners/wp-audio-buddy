@@ -180,6 +180,48 @@ public function __construct(
         return $formatter->format($transcript);
     }
 
+    public function handle_topics(int $attachment_id): void
+    {
+        try {
+            $config = $this->settings->getProviderConfig('excerpt');
+            $transcript = (string) get_post_meta($attachment_id, Meta::TRANSCRIPT, true);
+            if ('' === trim($transcript)) {
+                $this->logger->info('topics', 'Skipped topic generation: transcript missing.', $attachment_id);
+                return;
+            }
+
+            if ('done' === Meta::topics_status($attachment_id) && '' !== trim((string) get_post_meta($attachment_id, Meta::TOPICS, true))) {
+                return;
+            }
+
+            update_post_meta($attachment_id, Meta::TOPICS_STATUS, 'running');
+
+            $template = (string) $this->settings->get('topics_prompt_text', SettingsController::default_topics_prompt());
+            $prompt = str_replace('{{TRANSCRIPT}}', $transcript, $template);
+            $response = $this->responses_api($prompt, 0, null);
+
+            if (is_wp_error($response)) {
+                update_post_meta($attachment_id, Meta::TOPICS_STATUS, 'error');
+                update_post_meta($attachment_id, Meta::TOPICS_ERROR, $response->get_error_message());
+                $this->logger->error('topics', 'Topic generation failed: ' . $response->get_error_message(), $attachment_id);
+                return;
+            }
+
+            update_post_meta($attachment_id, Meta::TOPICS, $response);
+            update_post_meta($attachment_id, Meta::TOPICS_ERROR, '');
+            update_post_meta($attachment_id, Meta::TOPICS_STATUS, 'done');
+            update_post_meta($attachment_id, Meta::TOPICS_MODEL, $config['model']);
+            update_post_meta($attachment_id, Meta::TOPICS_UPDATED, current_time('mysql'));
+
+            $this->logger->info('topics', 'Topic tags generated successfully.', $attachment_id, ['model' => $config['model']]);
+        } catch (\Throwable $e) {
+            $message = 'Topic generation error: ' . $e->getMessage();
+            update_post_meta($attachment_id, Meta::TOPICS_STATUS, 'error');
+            update_post_meta($attachment_id, Meta::TOPICS_ERROR, $message);
+            $this->logger->error('topics_exception', $message, $attachment_id, ['file' => $e->getFile(), 'line' => $e->getLine()]);
+        }
+    }
+
     private function responses_api(string $input, int $max_words, mixed $temperature = null): string|\WP_Error
     {
         $config = $this->settings->getProviderConfig('excerpt');

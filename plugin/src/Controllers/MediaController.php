@@ -119,6 +119,15 @@ final class MediaController
             'show_in_modal' => true,
         ];
 
+        $form_fields[Meta::TOPICS] = [
+            'label' => __('Topic Tags', 'wp-audio-buddy'),
+            'input' => 'textarea',
+            'value' => get_post_meta($post->ID, Meta::TOPICS, true),
+            'helps' => wpab_topics_meta_html($post->ID),
+            'show_in_edit' => true,
+            'show_in_modal' => true,
+        ];
+
         // Inline copy-to-clipboard JS for the attachment edit/modal screens.
         $form_fields['wpab_copy_buttons'] = [
             'label' => __('Copy', 'wp-audio-buddy'),
@@ -165,6 +174,11 @@ final class MediaController
                 'output_text' => $excerpt,
                 'metadata_json' => wp_json_encode(['source' => 'manual_edit']),
             ]);
+        }
+
+        if (isset($attachment[Meta::TOPICS])) {
+            update_post_meta($attachment_id, Meta::TOPICS, sanitize_textarea_field($attachment[Meta::TOPICS]));
+            update_post_meta($attachment_id, Meta::TOPICS_UPDATED, current_time('mysql'));
         }
 
         return $post;
