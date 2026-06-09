@@ -48,7 +48,7 @@ public static function defaults(): array
 
     public static function default_format_prompt(): string
     {
-        return "Format this transcript into readable paragraphs while preserving meaning and wording. Output plain text only. Maximum {{MAX_WORDS}} words.";
+        return "Format this transcript into readable paragraphs while preserving meaning and wording. Output plain text only. Maximum {{MAX_WORDS}} words.\n\n{{TRANSCRIPT}}";
     }
 
     public static function prompt_templates(): array
